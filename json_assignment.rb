@@ -1,126 +1,98 @@
+# frozen_string_literal: true
 require "json"
 
 class DetailSuggester
-  RULES = [
+  def initialize(rng: Random.new)
+    @rng = rng
+  end
+
+  def suggest(input_hash)
+    host = input_hash["host_element"]
+    adjacent = input_hash["adjacent_element"]
+    exposure = input_hash["exposure"]
+
+    key = [host, adjacent, exposure]
+    candidates = details_table[key] || fallback_candidates
+
+    chosen = candidates.sample(random: @rng)
+
     {
-      host_element: "External Wall",
-      adjacent_element: "Slab",
-      exposure: "External",
-      suggested_detail: "External Wall–Slab Junction Waterproofing"
-    },
-    {
-      host_element: "External Wall",
-      adjacent_element: "Roof Slab",
-      exposure: "External",
-      suggested_detail: "External Wall–Roof Slab Upstand Waterproofing"
-    },
-    {
-      host_element: "Basement Wall",
-      adjacent_element: "Slab",
-      exposure: "Ground",
-      suggested_detail: "Basement Wall–Slab Joint Waterbar + Waterproofing"
+      "suggested_detail" => chosen[:detail],
+      "confidence" => random_confidence(chosen[:confidence_range]),
+      "reason" => chosen[:reason]
     }
-  ].freeze
-
-  def suggest(input)
-    normalized = normalize_input(input)
-
-    best = nil
-    best_score = -1
-    best_matched = 0
-
-    RULES.each do |rule|
-      score, matched = score_rule(rule, normalized)
-      next if matched == 0
-
-      if score > best_score
-        best = rule
-        best_score = score
-        best_matched = matched
-      end
-    end
-
-    build_response(best, best_matched)
   end
 
   private
 
-  def normalize_input(input)
-    {
-      host_element: clean(input["host_element"]),
-      adjacent_element: clean(input["adjacent_element"]),
-      exposure: clean(input["exposure"])
+  def details_table
+    @details_table ||= {
+      ["External Wall", "Slab", "External"] => [
+        {
+          detail: "External Wall–Slab Junction Waterproofing",
+          confidence_range: (0.88..0.95),
+          reason: "Matches host/adjacent/exposure; picked from multiple valid details"
+        },
+        {
+          detail: "External Wall–Slab Edge Sealant + Drip Detail",
+          confidence_range: (0.80..0.90),
+          reason: "Same junction context; alternate commonly used detail"
+        }
+      ],
+
+      ["Basement Wall", "Slab", "Ground"] => [
+        {
+          detail: "Basement Wall–Slab Joint Waterbar + Waterproofing",
+          confidence_range: (0.85..0.93),
+          reason: "Below-grade junction; picked from multiple valid details"
+        },
+        {
+          detail: "Basement Wall–Slab Fillet + Membrane Lapping",
+          confidence_range: (0.78..0.88),
+          reason: "Below-grade junction; alternate approach"
+        }
+      ]
     }
   end
 
-  def clean(val)
-    val.to_s.strip
-  end
-
-  def score_rule(rule, normalized)
-    score = 0
-    matched = 0
-
-    # weight exact matches higher
-    [:host_element, :adjacent_element, :exposure].each do |key|
-      if rule[key] == normalized[key]
-        score += 10
-        matched += 1
-      elsif rule[key].to_s.downcase == normalized[key].to_s.downcase && !normalized[key].empty?
-        score += 7
-        matched += 1
-      elsif !normalized[key].empty? && normalized[key].downcase.include?(rule[key].to_s.downcase)
-        score += 4
-        matched += 1
-      end
-    end
-
-    [score, matched]
-  end
-
-  def build_response(best_rule, matched_fields)
-    if best_rule.nil?
-      return {
-        "suggested_detail" => nil,
-        "confidence" => 0.0,
-        "reason" => "No matching rule found"
+  def fallback_candidates
+    [
+      {
+        detail: "Generic Junction Sealing Detail",
+        confidence_range: (0.45..0.60),
+        reason: "No exact rule; using generic fallback"
+      },
+      {
+        detail: "Generic Waterproofing Continuity Detail",
+        confidence_range: (0.40..0.58),
+        reason: "No exact rule; using another safe fallback"
       }
-    end
+    ]
+  end
 
-    confidence =
-      case matched_fields
-      when 3 then 0.92
-      when 2 then 0.75
-      when 1 then 0.55
-      else 0.0
-      end
-
-    reason =
-      case matched_fields
-      when 3 then "Exact match on host, adjacent, and exposure"
-      when 2 then "Partial match on 2 of 3 fields"
-      when 1 then "Loose match on 1 field"
-      else "No meaningful match"
-      end
-
-    {
-      "suggested_detail" => best_rule[:suggested_detail],
-      "confidence" => confidence,
-      "reason" => reason
-    }
+  def random_confidence(range)
+    # rounding off to 2 digits.
+    min = range.begin.to_f
+    max = range.end.to_f
+    (min + @rng.rand * (max - min)).round(2)
   end
 end
 
-# ---- testing ----
-input_json = <<~JSON
-{
-  "host_element": "External Wall",
-  "adjacent_element": "Slab",
-  "exposure": "External"
+#testing with random input and corresponding output
+HOSTS     = ["External Wall", "Basement Wall", "Internal Wall"].freeze
+ADJACENTS = ["Slab", "Roof Slab", "Beam"].freeze
+EXPOSURES = ["External", "Ground", "Internal"].freeze
+
+input = {
+  "host_element" => HOSTS.sample,
+  "adjacent_element" => ADJACENTS.sample,
+  "exposure" => EXPOSURES.sample
 }
-JSON
 
-input = JSON.parse(input_json)
-output = DetailSuggester.new.suggest(input)
+suggester = DetailSuggester.new
+output = suggester.suggest(input)
 
+puts "INPUT:"
+puts JSON.pretty_generate(input)
+puts "\nOUTPUT:"
 puts JSON.pretty_generate(output)
