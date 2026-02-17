@@ -1,0 +1,148 @@
+You are a senior staff engineer + quant-minded options trader. Build a production-quality, extensible full-stack app called “IncomePilot” that helps a long-term NASDAQ investor manage covered calls (and rolling) systematically. This is NOT an auto-trading bot; it is decision intelligence.
+
+GOALS
+1) End-to-end working app: Backend + Frontend + UI + local persistence + tests.
+2) Real logic: option scoring, covered-call selection, roll decision engine, earnings risk filter, and journaling.
+3) Extensible: clean architecture so I can swap mock market-data with a real provider later (Polygon/Tradier/TDA/etc).
+4) Easy to run locally in 1 command. Provide step-by-step setup instructions.
+5) Use multi-agent style internally (modules/“agents”) but implement as normal code, not LLM calls.
+
+TECH STACK (do exactly this)
+- Backend: Python 3.11, FastAPI, Pydantic v2
+- Frontend: React + TypeScript + Vite + Tailwind
+- Local DB: mysql
+- Charts: Recharts (frontend)
+- Testing: Pytest (backend), Vitest (frontend)
+- Dev UX: Makefile + Docker optional but not required. Must run without Docker.
+- Code style: black/ruff for backend, eslint/prettier for frontend.
+- Provide a monorepo structure.
+
+CORE FEATURES
+A) Portfolio ingestion
+- UI to add/edit holdings: symbol, shares, avg_cost, account_type (taxable/retirement), tags (optional)
+- Bulk import from CSV (provide sample CSV + parsing).
+- Store holdings in mysql.
+
+B) Market data (mock-first, provider interface)
+- Provide an abstract interface MarketDataProvider:
+  - get_quote(symbol) -> price, timestamp
+  - get_option_chain(symbol, as_of_date) -> options for multiple expiries with strike, bid, ask, last, iv, delta, gamma, theta, open_interest, volume
+  - get_earnings_calendar(symbol) -> next earnings date (optional; mock acceptable)
+- Implement MockMarketDataProvider with realistic sample data for 5 NASDAQ tickers (TSLA, META, AAPL, AMZN, QQQ).
+- Provide a switch in config (.env) to pick provider; later I can add real providers.
+
+C) Covered Call Recommendation Engine (core logic)
+Given a holding:
+- Generate candidate covered calls (calls only) across expiries 7–30 DTE by default.
+- Strategy configuration stored per-user:
+  - target_delta_range (default 0.15–0.30)
+  - preferred_dte_range (default 7–21)
+  - min_annualized_yield (default 8%)
+  - max_assignment_probability (default 35%) [use delta proxy]
+  - avoid_earnings_window_days (default 7 days before earnings to 2 days after)
+  - min_open_interest (default 100) and min_volume (default 10)
+  - premium_pricing: use mid (bid+ask)/2
+- Compute metrics per contract:
+  - premium_yield_pct = premium / (spot * 100)
+  - annualized_yield_pct = premium_yield_pct * (365 / dte)
+  - moneyness_pct = (strike - spot) / spot
+  - prob_itm_proxy = delta (absolute)
+  - score = weighted composite of yield, delta closeness, liquidity, distance, and earnings safety
+- Output top 3 recommendations per symbol with a clear explanation:
+  - “Why this strike/expiry”
+  - “Risk: assignment likelihood”
+  - “Income: expected premium”
+
+D) Roll Decision Engine (core logic)
+Given an existing short call position:
+Inputs: symbol, strike, expiry, sold_price, current_option_price (mid), current_spot, days_to_expiry.
+Decide one of:
+1) Hold
+2) Close
+3) Roll out
+4) Roll up & out
+5) Accept assignment
+Rules:
+- Compute extrinsic = option_price - intrinsic
+- If DTE <= 2 and option deep ITM and extrinsic small, prefer accept assignment OR roll only if credit available.
+- If gamma risk high near expiry and ITM, prefer roll out.
+- Roll search: look for next expiry candidates that provide net credit >= 0 OR small debit under configured threshold, while keeping delta in target and improving strike if possible.
+- Provide explanation + the chosen roll contract if applicable.
+- Create a “what-if” comparison table for the top 3 roll alternatives.
+
+E) Journal + Analytics
+- Every recommendation and user action can be saved:
+  - decision type (sell/close/roll/hold/assign)
+  - contract details
+  - timestamp
+  - rationale (auto generated text)
+  - outcome fields editable later (assigned? profit?)
+- Dashboard charts:
+  - monthly premium income (estimated from journal)
+  - distribution of deltas used
+  - realized vs unrealized approximation (simple)
+- Provide filtering: by symbol, date range.
+
+F) UI Requirements (Frontend)
+Pages:
+1) Dashboard: key metrics + charts
+2) Portfolio: holdings table + add/edit + CSV import
+3) Recommendations: select symbol -> see top 3 call recs + explanation + “save to journal”
+4) Roll Assistant: enter an existing call (or pick from journal) -> roll decision + alternatives table
+5) Settings: strategy config form
+
+UX:
+- Clean layout, mobile-responsive.
+- Use Tailwind components, simple cards/tables.
+- Use toast notifications for save/import.
+
+G) API Endpoints (Backend)
+- CRUD holdings
+- Import CSV holdings
+- Get recommendations for a symbol
+- Get roll decision for a symbol/position
+- CRUD journal entries
+- Analytics endpoints (monthly premium, delta histogram)
+- Settings endpoints (get/update strategy config)
+
+H) Seed Data + “Demo Mode”
+- One click “Load demo portfolio” button that inserts sample holdings for TSLA/META/QQQ.
+- Demo mode uses mock provider only.
+
+I) Security/Scope
+- Local-only single-user app (no auth) for now.
+- Clean separation so auth can be added later.
+
+DELIVERABLES
+1) Full repository code with:
+   - /backend (FastAPI)
+   - /frontend (React)
+   - /shared (types if needed)
+2) A README with:
+   - prerequisites
+   - setup steps
+   - running backend, frontend
+   - how to load demo data
+   - how to run tests
+3) Provide sample CSV.
+4) Provide clear extension guide: “How to add a real MarketDataProvider”.
+5) Include at least 10 backend unit tests around scoring + roll engine edge cases.
+6) Include basic frontend tests for key components.
+
+IMPORTANT IMPLEMENTATION NOTES
+- Keep the financial logic deterministic and testable.
+- Use configuration-driven weights for scoring:
+  score_weights = {yield: 0.35, delta_fit: 0.25, liquidity: 0.20, distance: 0.10, earnings_safety: 0.10}
+- Use Pydantic models for request/response.
+- Document all formulas in code comments + README.
+
+OUTPUT FORMAT (must follow exactly)
+1) First: show the monorepo folder tree.
+2) Then: paste all backend code files with paths (one by one).
+3) Then: paste all frontend code files with paths (one by one).
+4) Then: paste README.md content.
+5) Then: paste sample CSV.
+6) Then: explain “How to extend with real provider” in 8–12 bullet points.
+
+Start now. Build the full working app, not a skeleton. If something is ambiguous, make a reasonable assumption and proceed (do not ask me questions).
+

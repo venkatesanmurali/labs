@@ -1,0 +1,6 @@
+symbol,shares,avg_cost,account_type,tags
+TSLA,200,250.00,taxable,growth
+META,100,480.00,taxable,tech
+AAPL,300,175.00,retirement,core
+AMZN,100,185.00,taxable,tech
+QQQ,500,440.00,retirement,index
