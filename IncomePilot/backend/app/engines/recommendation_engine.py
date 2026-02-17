@@ -174,8 +174,9 @@ def recommend_covered_calls(
     # ── Step 2: Compute metrics & score ──────────────────────────────────
     scored: List[CandidateMetrics] = []
     for c in candidates:
-        mid = c.mid
-        premium_yield_pct = (mid / spot) * 100 if spot > 0 else 0
+        # Use bid as the realistic fill price (most trades happen at bid)
+        bid = c.bid
+        premium_yield_pct = (bid / spot) * 100 if spot > 0 else 0
         annualized_yield_pct = premium_yield_pct * (365 / c.dte) if c.dte > 0 else 0
         moneyness_pct = (c.strike - spot) / spot if spot > 0 else 0
 
@@ -208,7 +209,7 @@ def recommend_covered_calls(
             f"{'⚠ Inside earnings window.' if s_earn == 0 else 'Outside earnings window.'}"
         )
         income_note = (
-            f"Premium ${mid:.2f}/share (${mid * 100:.0f}/contract). "
+            f"Premium ${bid:.2f}/share (${bid * 100:.0f}/contract). "
             f"Yield {premium_yield_pct:.2f}% per cycle, "
             f"{annualized_yield_pct:.1f}% annualised."
         )
@@ -310,8 +311,9 @@ def recommend_cash_secured_puts(
     # ── Step 2: Compute metrics & score ────────────────────────────────
     scored: List[CandidateMetrics] = []
     for c in candidates:
-        mid = c.mid
-        premium_yield_pct = (mid / spot) * 100 if spot > 0 else 0
+        # Use bid as the realistic fill price (most trades happen at bid)
+        bid = c.bid
+        premium_yield_pct = (bid / spot) * 100 if spot > 0 else 0
         annualized_yield_pct = premium_yield_pct * (365 / c.dte) if c.dte > 0 else 0
         # For puts, moneyness = how far OTM below spot (positive = OTM)
         moneyness_pct = (spot - c.strike) / spot if spot > 0 else 0
@@ -344,7 +346,7 @@ def recommend_cash_secured_puts(
             f"{'⚠ Inside earnings window.' if s_earn == 0 else 'Outside earnings window.'}"
         )
         income_note = (
-            f"Premium ${mid:.2f}/share (${mid * 100:.0f}/contract). "
+            f"Premium ${bid:.2f}/share (${bid * 100:.0f}/contract). "
             f"Yield {premium_yield_pct:.2f}% per cycle, "
             f"{annualized_yield_pct:.1f}% annualised."
         )

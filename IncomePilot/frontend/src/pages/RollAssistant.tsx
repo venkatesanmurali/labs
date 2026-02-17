@@ -177,7 +177,9 @@ export default function RollAssistant() {
                     <th className="px-4 py-2">Expiry</th>
                     <th className="px-4 py-2">DTE</th>
                     <th className="px-4 py-2">Delta</th>
+                    <th className="px-4 py-2">Bid</th>
                     <th className="px-4 py-2">Mid</th>
+                    <th className="px-4 py-2">Ask</th>
                     <th className="px-4 py-2">Net Credit</th>
                     <th className="px-4 py-2">OTM %</th>
                     <th className="px-4 py-2">Note</th>
@@ -193,7 +195,9 @@ export default function RollAssistant() {
                       <td className="px-4 py-2">{a.expiry}</td>
                       <td className="px-4 py-2">{a.dte}</td>
                       <td className="px-4 py-2">{a.delta.toFixed(3)}</td>
+                      <td className="px-4 py-2 text-green-700 font-medium">${a.bid.toFixed(2)}</td>
                       <td className="px-4 py-2">${a.mid.toFixed(2)}</td>
+                      <td className="px-4 py-2">${a.ask.toFixed(2)}</td>
                       <td
                         className={`px-4 py-2 font-medium ${
                           a.net_credit >= 0

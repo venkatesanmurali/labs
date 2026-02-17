@@ -30,7 +30,7 @@ export default function Recommendations() {
         decision_type: "sell",
         strike: c.strike,
         expiry: c.expiry,
-        premium: c.mid,
+        premium: c.bid,
         delta_at_entry: c.delta,
         contracts: 1,
         rationale: c.why,
@@ -123,7 +123,9 @@ export default function Recommendations() {
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+                    <Stat label="Bid" value={`$${c.bid.toFixed(2)}`} highlight />
                     <Stat label="Mid" value={`$${c.mid.toFixed(2)}`} />
+                    <Stat label="Ask" value={`$${c.ask.toFixed(2)}`} />
                     <Stat label="Delta" value={c.delta.toFixed(3)} />
                     <Stat
                       label="Annualised"
@@ -170,11 +172,11 @@ export default function Recommendations() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
     <div>
       <p className="text-xs text-gray-400">{label}</p>
-      <p className="font-medium">{value}</p>
+      <p className={`font-medium ${highlight ? "text-green-700" : ""}`}>{value}</p>
     </div>
   );
 }

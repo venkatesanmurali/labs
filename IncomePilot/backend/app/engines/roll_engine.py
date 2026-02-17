@@ -88,9 +88,9 @@ def evaluate_roll(
         if c.strike < strike:
             continue
 
-        # Net credit = what we collect (selling new) - what we pay (buying back old)
+        # Net credit = what we collect (selling new at bid) - what we pay (buying back old)
         # Positive = credit; negative = debit
-        net_credit = round(c.mid - option_mid, 2)
+        net_credit = round(c.bid - option_mid, 2)
 
         # Skip if debit exceeds threshold
         if net_credit < -roll_max_debit:
