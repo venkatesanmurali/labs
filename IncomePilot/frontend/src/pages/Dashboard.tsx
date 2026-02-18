@@ -11,8 +11,8 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { journalApi, holdingsApi } from "../api/client";
-import type { AnalyticsDashboard, NetWorthSummary } from "../types";
+import { journalApi, holdingsApi, tradesApi } from "../api/client";
+import type { AnalyticsDashboard, NetWorthSummary, YTDPnL } from "../types";
 
 const COLORS = [
   "#22c55e",
@@ -27,15 +27,18 @@ const COLORS = [
 export default function Dashboard() {
   const [data, setData] = useState<AnalyticsDashboard | null>(null);
   const [netWorth, setNetWorth] = useState<NetWorthSummary | null>(null);
+  const [ytd, setYtd] = useState<YTDPnL | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       journalApi.dashboard().catch(() => null),
       holdingsApi.netWorth().catch(() => null),
-    ]).then(([d, nw]) => {
+      tradesApi.ytdPnl().catch(() => null),
+    ]).then(([d, nw, y]) => {
       setData(d);
       setNetWorth(nw);
+      setYtd(y);
       setLoading(false);
     });
   }, []);
@@ -52,7 +55,7 @@ export default function Dashboard() {
       <h2 className="text-2xl font-bold">Dashboard</h2>
 
       {/* ── KPI cards ────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {netWorth && netWorth.total_net_worth > 0 && (
           <Card
             label="Family Net Worth"
@@ -60,29 +63,30 @@ export default function Dashboard() {
             color="text-green-600"
           />
         )}
-        {pnl && (
+        {ytd && (
           <>
             <Card
-              label="Premium Collected"
-              value={`$${pnl.total_premium_collected.toLocaleString()}`}
+              label="YTD Trade Income"
+              value={`$${ytd.total_premium_collected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              color="text-green-600"
             />
             <Card
-              label="Realized P&L"
-              value={`$${pnl.realized_pnl.toLocaleString()}`}
-              color={pnl.realized_pnl >= 0 ? "text-green-600" : "text-red-600"}
+              label="YTD Losses"
+              value={`$${ytd.total_losses.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              color="text-red-600"
             />
-            <Card label="Open Positions" value={String(pnl.open_positions)} />
             <Card
-              label="Unrealized (est.)"
-              value={`$${pnl.unrealized_estimate.toLocaleString()}`}
+              label="YTD Net P&L"
+              value={`$${ytd.net_pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              color={ytd.net_pnl >= 0 ? "text-green-600" : "text-red-600"}
             />
           </>
         )}
       </div>
 
-      {!data && !netWorth && (
+      {!ytd && !netWorth && !data && (
         <p className="text-gray-500">
-          No data yet. Add holdings in Portfolio or sell some covered calls!
+          No data yet. Add holdings in Portfolio or record trades!
         </p>
       )}
 

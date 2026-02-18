@@ -10,6 +10,18 @@ import type {
 
 const today = () => new Date().toISOString().slice(0, 10);
 const yearStart = () => `${new Date().getFullYear()}-01-01`;
+const currentMonth = () => new Date().toISOString().slice(0, 7); // YYYY-MM
+
+function shiftMonth(month: string, delta: number): string {
+  const [y, m] = month.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatMonth(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(y, m - 1).toLocaleString("default", { month: "long", year: "numeric" });
+}
 
 const EMPTY: OptionTradeCreate = {
   symbol: "",
@@ -35,12 +47,13 @@ export default function Trades() {
   const [filterOwner, setFilterOwner] = useState("");
   const [filterSymbol, setFilterSymbol] = useState("");
   const [filterStrategy, setFilterStrategy] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth());
   const [editingNotes, setEditingNotes] = useState<number | null>(null);
   const [notesValue, setNotesValue] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadTrades = () => {
-    const params: any = {};
+    const params: any = { month: selectedMonth };
     if (filterOwner) params.owner = filterOwner;
     if (filterSymbol) params.symbol = filterSymbol;
     if (filterStrategy) params.strategy_type = filterStrategy;
@@ -52,7 +65,7 @@ export default function Trades() {
   useEffect(() => {
     loadTrades();
     loadYtd();
-  }, [filterOwner, filterSymbol, filterStrategy]);
+  }, [filterOwner, filterSymbol, filterStrategy, selectedMonth]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -366,45 +379,77 @@ export default function Trades() {
         )}
       </div>
 
-      {/* ── Filters ──────────────────────────────────────────────────── */}
-      <div className="flex gap-3 items-end flex-wrap">
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Owner</label>
-          <select
-            className="border rounded px-2 py-1.5 text-sm"
-            value={filterOwner}
-            onChange={(e) => setFilterOwner(e.target.value)}
+      {/* ── Month Nav + Filters ────────────────────────────────────── */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}
+            className="px-3 py-1.5 bg-gray-200 rounded text-sm hover:bg-gray-300 font-medium"
           >
-            <option value="">All</option>
-            <option value="Venky">Venky</option>
-            <option value="Bharg">Bharg</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Symbol</label>
+            &larr; Prev
+          </button>
           <input
-            className="border rounded px-2 py-1.5 text-sm w-24"
-            value={filterSymbol}
-            onChange={(e) => setFilterSymbol(e.target.value.toUpperCase())}
-            placeholder="e.g. TSLA"
+            type="month"
+            className="border rounded px-2 py-1.5 text-sm font-semibold"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
           />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Strategy</label>
-          <select
-            className="border rounded px-2 py-1.5 text-sm"
-            value={filterStrategy}
-            onChange={(e) => setFilterStrategy(e.target.value)}
+          <button
+            onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}
+            className="px-3 py-1.5 bg-gray-200 rounded text-sm hover:bg-gray-300 font-medium"
           >
-            <option value="">All</option>
-            <option value="CC">CC</option>
-            <option value="CSP">CSP</option>
-          </select>
+            Next &rarr;
+          </button>
+          <button
+            onClick={() => setSelectedMonth(currentMonth())}
+            className="px-3 py-1.5 bg-brand-600 text-white rounded text-sm hover:bg-brand-700 font-medium"
+          >
+            Today
+          </button>
+        </div>
+        <div className="flex gap-3 items-end flex-wrap">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Owner</label>
+            <select
+              className="border rounded px-2 py-1.5 text-sm"
+              value={filterOwner}
+              onChange={(e) => setFilterOwner(e.target.value)}
+            >
+              <option value="">All</option>
+              <option value="Venky">Venky</option>
+              <option value="Bharg">Bharg</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Symbol</label>
+            <input
+              className="border rounded px-2 py-1.5 text-sm w-24"
+              value={filterSymbol}
+              onChange={(e) => setFilterSymbol(e.target.value.toUpperCase())}
+              placeholder="e.g. TSLA"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Strategy</label>
+            <select
+              className="border rounded px-2 py-1.5 text-sm"
+              value={filterStrategy}
+              onChange={(e) => setFilterStrategy(e.target.value)}
+            >
+              <option value="">All</option>
+              <option value="CC">CC</option>
+              <option value="CSP">CSP</option>
+            </select>
+          </div>
         </div>
       </div>
 
       {/* ── Trade History Table ───────────────────────────────────────── */}
       <div className="bg-white rounded-lg shadow overflow-x-auto">
+        <div className="px-4 py-2 border-b flex justify-between items-center">
+          <span className="font-semibold">{formatMonth(selectedMonth)}</span>
+          <span className="text-sm text-gray-500">{trades.length} trade{trades.length !== 1 ? "s" : ""}</span>
+        </div>
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs text-gray-500 uppercase">
             <tr>

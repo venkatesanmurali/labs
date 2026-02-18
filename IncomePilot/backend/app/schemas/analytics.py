@@ -62,7 +62,7 @@ class NetWorthHolding(BaseModel):
     symbol: str
     owner: str
     holding_type: str
-    shares: int
+    shares: float
     avg_cost: float
     current_price: float
     market_value: float

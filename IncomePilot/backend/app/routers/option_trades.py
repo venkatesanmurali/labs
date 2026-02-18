@@ -30,6 +30,7 @@ def list_trades(
     symbol: Optional[str] = None,
     strategy_type: Optional[str] = Query(None, pattern=r"^(CC|CSP)$"),
     owner: Optional[str] = Query(None, pattern=r"^(Venky|Bharg)$"),
+    month: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}$"),  # YYYY-MM
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     db: Session = Depends(get_db),
@@ -41,6 +42,16 @@ def list_trades(
         q = q.filter(OptionTrade.strategy_type == strategy_type)
     if owner:
         q = q.filter(OptionTrade.owner == owner)
+    if month:
+        year, mon = int(month[:4]), int(month[5:])
+        month_start = date(year, mon, 1)
+        if mon == 12:
+            month_end = date(year + 1, 1, 1)
+        else:
+            month_end = date(year, mon + 1, 1)
+        q = q.filter(
+            and_(OptionTrade.trade_date >= month_start, OptionTrade.trade_date < month_end)
+        )
     if start_date:
         q = q.filter(OptionTrade.trade_date >= start_date)
     if end_date:

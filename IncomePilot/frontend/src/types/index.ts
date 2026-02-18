@@ -237,7 +237,7 @@ export interface NetWorthHolding {
   symbol: string;
   owner: string;
   holding_type: string;
-  shares: number;
+  shares: number; // can be fractional
   avg_cost: number;
   current_price: number;
   market_value: number;

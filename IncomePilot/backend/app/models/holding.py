@@ -15,7 +15,7 @@ class Holding(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     symbol: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
-    shares: Mapped[int] = mapped_column(Integer, nullable=False)
+    shares: Mapped[float] = mapped_column(Float, nullable=False)
     avg_cost: Mapped[float] = mapped_column(Float, nullable=False)
     owner: Mapped[str] = mapped_column(
         String(20), nullable=False, default="Venky"

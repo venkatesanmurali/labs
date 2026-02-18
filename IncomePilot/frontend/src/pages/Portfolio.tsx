@@ -218,10 +218,11 @@ export default function Portfolio() {
           <label className="block text-xs font-medium text-gray-600 mb-1">Shares</label>
           <input
             type="number"
+            step="0.0001"
             className="w-full border rounded px-2 py-1.5 text-sm"
             value={form.shares}
             onChange={(e) => setForm({ ...form, shares: +e.target.value })}
-            min={1}
+            min={0.0001}
             required
           />
         </div>
@@ -252,7 +253,14 @@ export default function Portfolio() {
           <select
             className="w-full border rounded px-2 py-1.5 text-sm"
             value={form.holding_type}
-            onChange={(e) => setForm({ ...form, holding_type: e.target.value })}
+            onChange={(e) => {
+              const ht = e.target.value;
+              setForm({
+                ...form,
+                holding_type: ht,
+                option_type: ht === "leaps" ? (form.option_type || "call") : null,
+              });
+            }}
           >
             <option value="stock">Stock</option>
             <option value="leaps">LEAPS</option>

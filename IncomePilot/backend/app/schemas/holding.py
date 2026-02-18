@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, model_validator
 
 class HoldingBase(BaseModel):
     symbol: str = Field(..., max_length=10, examples=["AAPL"])
-    shares: int = Field(..., ge=1)
+    shares: float = Field(..., gt=0)
     avg_cost: float = Field(..., gt=0)
     owner: str = Field("Venky", pattern=r"^(Venky|Bharg)$")
     holding_type: str = Field("stock", pattern=r"^(stock|leaps)$")
@@ -35,7 +35,7 @@ class HoldingCreate(HoldingBase):
 
 class HoldingUpdate(BaseModel):
     symbol: Optional[str] = None
-    shares: Optional[int] = Field(None, ge=1)
+    shares: Optional[float] = Field(None, gt=0)
     avg_cost: Optional[float] = Field(None, gt=0)
     owner: Optional[str] = Field(None, pattern=r"^(Venky|Bharg)$")
     holding_type: Optional[str] = Field(None, pattern=r"^(stock|leaps)$")

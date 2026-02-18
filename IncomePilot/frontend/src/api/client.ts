@@ -146,6 +146,7 @@ export const tradesApi = {
     symbol?: string;
     strategy_type?: string;
     owner?: string;
+    month?: string;
     start_date?: string;
     end_date?: string;
   }) => {
@@ -153,6 +154,7 @@ export const tradesApi = {
     if (params?.symbol) qs.set("symbol", params.symbol);
     if (params?.strategy_type) qs.set("strategy_type", params.strategy_type);
     if (params?.owner) qs.set("owner", params.owner);
+    if (params?.month) qs.set("month", params.month);
     if (params?.start_date) qs.set("start_date", params.start_date);
     if (params?.end_date) qs.set("end_date", params.end_date);
     const q = qs.toString();
