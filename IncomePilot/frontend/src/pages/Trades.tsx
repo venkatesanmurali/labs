@@ -47,7 +47,7 @@ export default function Trades() {
     tradesApi.list(params).then(setTrades).catch(() => {});
   };
 
-  const loadYtd = () => tradesApi.ytdPnl().then(setYtd).catch(() => {});
+  const loadYtd = () => tradesApi.ytdPnl(filterOwner || undefined).then(setYtd).catch(() => {});
 
   useEffect(() => {
     loadTrades();
@@ -143,7 +143,11 @@ export default function Trades() {
 
       {/* ── YTD P&L Card ─────────────────────────────────────────────── */}
       {ytd && (
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div>
+          <h3 className="text-lg font-semibold mb-2">
+            {filterOwner ? `${filterOwner}'s YTD P&L` : "Family YTD P&L"}
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <div className="bg-white rounded-lg shadow p-4">
             <p className="text-sm text-gray-500">Total Income (YTD)</p>
             <p className="text-2xl font-bold text-green-600">{fmt(ytd.total_premium_collected)}</p>
@@ -162,6 +166,7 @@ export default function Trades() {
             <p className="text-sm text-gray-500">Trade Count (YTD)</p>
             <p className="text-2xl font-bold">{ytd.trade_count}</p>
           </div>
+        </div>
         </div>
       )}
 

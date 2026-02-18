@@ -171,15 +171,40 @@ def delete_trade(trade_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
+# Contracts lookup: (owner, symbol) -> contracts count
+CONTRACTS_LOOKUP: dict[tuple[str, str], int] = {
+    ("Venky", "TSLA"): 11,
+    ("Venky", "GOOGL"): 3,
+    ("Venky", "GOOG"): 3,
+    ("Bharg", "TSLA"): 7,
+    ("Bharg", "GOOGL"): 4,
+    ("Bharg", "GOOG"): 4,
+}
+
+
+def _parse_date_str(raw: str) -> str:
+    """Parse date from DD/MM/YYYY or YYYY-MM-DD to YYYY-MM-DD."""
+    raw = raw.strip()
+    if "/" in raw:
+        return datetime.strptime(raw, "%d/%m/%Y").strftime("%Y-%m-%d")
+    return raw
+
+
 @router.post("/import-csv", response_model=TradeCSVImportResult)
 async def import_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
-    Import trades from CSV. Expected columns:
-      trade_type, symbol, strategy_type, strike, expiry, premium, contracts, trade_date, owner, notes
+    Import trades from CSV/TSV. Expected columns:
+      Type, Stock, strategy type, Strike price, Expiry, Amount, Comments, Who
+    Optional: Date (M/D/YYYY or YYYY-MM-DD, defaults to today)
+
+    Amount = total premium (not per-contract). Contracts are derived from
+    owner+symbol lookup; premium = Amount / (contracts * 100).
     """
     content = await file.read()
     text = content.decode("utf-8-sig")
-    reader = csv.DictReader(io.StringIO(text))
+    # Auto-detect delimiter: tab or comma
+    delimiter = "\t" if "\t" in text.split("\n", 1)[0] else ","
+    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
 
     imported = 0
     skipped = 0
@@ -187,22 +212,36 @@ async def import_csv(file: UploadFile = File(...), db: Session = Depends(get_db)
 
     for i, row in enumerate(reader, start=2):
         try:
-            symbol = row["symbol"].strip().upper()
-            strategy_type = row["strategy_type"].strip().upper()
-            if strategy_type not in ("CC", "CSP"):
-                raise ValueError(f"Invalid strategy_type: {strategy_type}")
-            trade_type = row["trade_type"].strip().lower()
+            trade_type = row["Type"].strip().lower()
             if trade_type not in ("fresh", "roll"):
-                raise ValueError(f"Invalid trade_type: {trade_type}")
-            strike = float(row["strike"])
-            expiry = row["expiry"].strip()
-            premium = float(row["premium"])
-            contracts = int(row.get("contracts", "1").strip() or "1")
-            trade_date = datetime.strptime(row["trade_date"].strip(), "%Y-%m-%d").date()
-            owner = row.get("owner", "Venky").strip()
+                raise ValueError(f"Invalid Type: {row['Type']}")
+            symbol = row["Stock"].strip().upper()
+            strategy_type = row["strategy type"].strip().upper()
+            if strategy_type not in ("CC", "CSP"):
+                raise ValueError(f"Invalid strategy type: {strategy_type}")
+            strike = float(row["Strike price"])
+            expiry = _parse_date_str(row["Expiry"])
+            amount = float(row["Amount"])
+            owner = row["Who"].strip()
             if owner not in ("Venky", "Bharg"):
                 owner = "Venky"
-            notes = row.get("notes", "").strip() or None
+            notes = row.get("Comments", "").strip() or None
+
+            # Derive contracts from lookup, default to 1
+            contracts = CONTRACTS_LOOKUP.get((owner, symbol), 1)
+
+            # Back-calculate per-contract premium from total amount
+            premium = amount / (contracts * 100) if contracts > 0 else amount
+
+            # Optional Date column, default to today
+            raw_date = row.get("Date", "").strip()
+            if raw_date:
+                if "/" in raw_date:
+                    trade_date = datetime.strptime(raw_date, "%d/%m/%Y").date()
+                else:
+                    trade_date = datetime.strptime(raw_date, "%Y-%m-%d").date()
+            else:
+                trade_date = date.today()
 
             t = OptionTrade(
                 symbol=symbol,
@@ -210,7 +249,7 @@ async def import_csv(file: UploadFile = File(...), db: Session = Depends(get_db)
                 trade_type=trade_type,
                 strike=strike,
                 expiry=expiry,
-                premium=premium,
+                premium=round(premium, 4),
                 contracts=contracts,
                 trade_date=trade_date,
                 owner=owner,
