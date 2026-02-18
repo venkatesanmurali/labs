@@ -23,7 +23,7 @@ function formatMonth(month: string): string {
   return new Date(y, m - 1).toLocaleString("default", { month: "long", year: "numeric" });
 }
 
-const EMPTY: OptionTradeCreate = {
+const EMPTY: OptionTradeCreate & { _sellPrice?: number; _avgCost?: number; _shares?: number } = {
   symbol: "",
   strategy_type: "CC",
   trade_type: "fresh",
@@ -38,7 +38,7 @@ const EMPTY: OptionTradeCreate = {
 
 export default function Trades() {
   const [trades, setTrades] = useState<OptionTrade[]>([]);
-  const [form, setForm] = useState<OptionTradeCreate>({ ...EMPTY });
+  const [form, setForm] = useState<OptionTradeCreate & { _sellPrice?: number; _avgCost?: number; _shares?: number }>({ ...EMPTY });
   const [editId, setEditId] = useState<number | null>(null);
   const [ytd, setYtd] = useState<YTDPnL | null>(null);
   const [report, setReport] = useState<IncomeReport | null>(null);
@@ -70,15 +70,30 @@ export default function Trades() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      let payload = { ...form };
+      // For STOCK trades, auto-calculate premium from sell price, avg cost, shares
+      if (form.strategy_type === "STOCK") {
+        const sellPrice = form._sellPrice || 0;
+        const avgCost = form._avgCost || 0;
+        const shares = form._shares || 0;
+        payload.premium = (sellPrice - avgCost) * shares;
+        payload.contracts = shares;
+        payload.strike = sellPrice;
+        payload.avg_cost = avgCost;
+        payload.trade_type = "sell";
+        payload.expiry = null;
+      }
+      // Strip internal fields before sending
+      const { _sellPrice, _avgCost, _shares, ...apiPayload } = payload;
       if (editId) {
         await tradesApi.update(editId, {
-          notes: form.notes,
-          premium: form.premium,
-          trade_type: form.trade_type,
+          notes: apiPayload.notes,
+          premium: apiPayload.premium,
+          trade_type: apiPayload.trade_type,
         } as any);
         toast.success("Trade updated");
       } else {
-        await tradesApi.create(form);
+        await tradesApi.create(apiPayload);
         toast.success("Trade recorded");
       }
       setForm({ ...EMPTY });
@@ -92,18 +107,37 @@ export default function Trades() {
 
   const startEdit = (t: OptionTrade) => {
     setEditId(t.id);
-    setForm({
-      symbol: t.symbol,
-      strategy_type: t.strategy_type,
-      trade_type: t.trade_type,
-      strike: t.strike,
-      expiry: t.expiry,
-      premium: t.premium,
-      contracts: t.contracts,
-      trade_date: t.trade_date,
-      owner: t.owner,
-      notes: t.notes || "",
-    });
+    const expiryDate = t.expiry ? t.expiry.slice(0, 10) : t.expiry;
+    if (t.strategy_type === "STOCK") {
+      setForm({
+        symbol: t.symbol,
+        strategy_type: t.strategy_type,
+        trade_type: t.trade_type,
+        strike: t.strike,
+        expiry: expiryDate,
+        premium: t.premium,
+        contracts: t.contracts,
+        trade_date: t.trade_date,
+        owner: t.owner,
+        notes: t.notes || "",
+        _sellPrice: t.strike || 0,
+        _avgCost: 0,
+        _shares: t.contracts,
+      });
+    } else {
+      setForm({
+        symbol: t.symbol,
+        strategy_type: t.strategy_type,
+        trade_type: t.trade_type,
+        strike: t.strike,
+        expiry: expiryDate,
+        premium: t.premium,
+        contracts: t.contracts,
+        trade_date: t.trade_date,
+        owner: t.owner,
+        notes: t.notes || "",
+      });
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -206,62 +240,110 @@ export default function Trades() {
           >
             <option value="CC">CC</option>
             <option value="CSP">CSP</option>
+            <option value="STOCK">Stock Sale</option>
           </select>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
-          <select
-            className="w-full border rounded px-2 py-1.5 text-sm"
-            value={form.trade_type}
-            onChange={(e) => setForm({ ...form, trade_type: e.target.value })}
-          >
-            <option value="fresh">Fresh</option>
-            <option value="roll">Roll</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Strike</label>
-          <input
-            type="number"
-            step="0.01"
-            className="w-full border rounded px-2 py-1.5 text-sm"
-            value={form.strike || ""}
-            onChange={(e) => setForm({ ...form, strike: +e.target.value })}
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Expiry</label>
-          <input
-            type="date"
-            className="w-full border rounded px-2 py-1.5 text-sm"
-            value={form.expiry}
-            onChange={(e) => setForm({ ...form, expiry: e.target.value })}
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Premium</label>
-          <input
-            type="number"
-            step="0.01"
-            className="w-full border rounded px-2 py-1.5 text-sm"
-            value={form.premium || ""}
-            onChange={(e) => setForm({ ...form, premium: +e.target.value })}
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Contracts</label>
-          <input
-            type="number"
-            className="w-full border rounded px-2 py-1.5 text-sm"
-            value={form.contracts}
-            onChange={(e) => setForm({ ...form, contracts: +e.target.value })}
-            min={1}
-            required
-          />
-        </div>
+        {form.strategy_type === "STOCK" ? (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Sell Price</label>
+              <input
+                type="number"
+                step="0.01"
+                className="w-full border rounded px-2 py-1.5 text-sm"
+                value={form._sellPrice || ""}
+                onChange={(e) => setForm({ ...form, _sellPrice: +e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Avg Cost</label>
+              <input
+                type="number"
+                step="0.01"
+                className="w-full border rounded px-2 py-1.5 text-sm"
+                value={form._avgCost || ""}
+                onChange={(e) => setForm({ ...form, _avgCost: +e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Shares Sold</label>
+              <input
+                type="number"
+                step="0.01"
+                className="w-full border rounded px-2 py-1.5 text-sm"
+                value={form._shares || ""}
+                onChange={(e) => setForm({ ...form, _shares: +e.target.value })}
+                min={0.01}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">P&L Preview</label>
+              <div className={`w-full border rounded px-2 py-1.5 text-sm bg-gray-50 font-medium ${((form._sellPrice || 0) - (form._avgCost || 0)) * (form._shares || 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                {fmt(((form._sellPrice || 0) - (form._avgCost || 0)) * (form._shares || 0))}
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
+              <select
+                className="w-full border rounded px-2 py-1.5 text-sm"
+                value={form.trade_type}
+                onChange={(e) => setForm({ ...form, trade_type: e.target.value })}
+              >
+                <option value="fresh">Fresh</option>
+                <option value="roll">Roll</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Strike</label>
+              <input
+                type="number"
+                step="0.01"
+                className="w-full border rounded px-2 py-1.5 text-sm"
+                value={form.strike || ""}
+                onChange={(e) => setForm({ ...form, strike: +e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Expiry</label>
+              <input
+                type="date"
+                className="w-full border rounded px-2 py-1.5 text-sm"
+                value={form.expiry || ""}
+                onChange={(e) => setForm({ ...form, expiry: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Premium</label>
+              <input
+                type="number"
+                step="0.01"
+                className="w-full border rounded px-2 py-1.5 text-sm"
+                value={form.premium || ""}
+                onChange={(e) => setForm({ ...form, premium: +e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Contracts</label>
+              <input
+                type="number"
+                className="w-full border rounded px-2 py-1.5 text-sm"
+                value={form.contracts}
+                onChange={(e) => setForm({ ...form, contracts: +e.target.value })}
+                min={1}
+                required
+              />
+            </div>
+          </>
+        )}
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Trade Date</label>
           <input
@@ -352,6 +434,7 @@ export default function Trades() {
                   <th className="px-4 py-2">Month</th>
                   <th className="px-4 py-2">CC Income</th>
                   <th className="px-4 py-2">CSP Income</th>
+                  <th className="px-4 py-2">Stock P&L</th>
                   <th className="px-4 py-2">Total</th>
                   <th className="px-4 py-2"># Trades</th>
                 </tr>
@@ -362,6 +445,7 @@ export default function Trades() {
                     <td className="px-4 py-2">{m.month}</td>
                     <td className="px-4 py-2">{fmt(m.cc_income)}</td>
                     <td className="px-4 py-2">{fmt(m.csp_income)}</td>
+                    <td className={`px-4 py-2 ${m.stock_pnl >= 0 ? "text-green-600" : "text-red-600"}`}>{fmt(m.stock_pnl)}</td>
                     <td className="px-4 py-2 font-medium">{fmt(m.total_income)}</td>
                     <td className="px-4 py-2">{m.trade_count}</td>
                   </tr>
@@ -370,6 +454,7 @@ export default function Trades() {
                   <td className="px-4 py-2">Total</td>
                   <td className="px-4 py-2">{fmt(report.totals.cc_total)}</td>
                   <td className="px-4 py-2">{fmt(report.totals.csp_total)}</td>
+                  <td className="px-4 py-2">{fmt(report.totals.stock_total)}</td>
                   <td className="px-4 py-2">{fmt(report.grand_total)}</td>
                   <td className="px-4 py-2"></td>
                 </tr>
@@ -439,6 +524,7 @@ export default function Trades() {
               <option value="">All</option>
               <option value="CC">CC</option>
               <option value="CSP">CSP</option>
+              <option value="STOCK">Stock</option>
             </select>
           </div>
         </div>
@@ -455,9 +541,9 @@ export default function Trades() {
             <tr>
               <th className="px-3 py-2">Date</th>
               <th className="px-3 py-2">Symbol</th>
-              <th className="px-3 py-2">CC/CSP</th>
+              <th className="px-3 py-2">Strategy</th>
               <th className="px-3 py-2">Type</th>
-              <th className="px-3 py-2">Strike</th>
+              <th className="px-3 py-2">Strike/Sell$</th>
               <th className="px-3 py-2">Expiry</th>
               <th className="px-3 py-2">Premium</th>
               <th className="px-3 py-2">Qty</th>
@@ -469,19 +555,20 @@ export default function Trades() {
           </thead>
           <tbody>
             {trades.map((t) => {
-              const total = t.premium * t.contracts * 100;
+              const isStock = t.strategy_type === "STOCK";
+              const total = isStock ? t.premium : t.premium * t.contracts * 100;
               return (
                 <tr key={t.id} className="border-t hover:bg-gray-50">
                   <td className="px-3 py-2">{t.trade_date}</td>
                   <td className="px-3 py-2 font-medium">{t.symbol}</td>
                   <td className="px-3 py-2">{t.strategy_type}</td>
                   <td className="px-3 py-2 capitalize">{t.trade_type}</td>
-                  <td className="px-3 py-2">${t.strike.toFixed(2)}</td>
-                  <td className="px-3 py-2">{t.expiry}</td>
+                  <td className="px-3 py-2">{t.strike != null ? `$${t.strike.toFixed(2)}` : "—"}</td>
+                  <td className="px-3 py-2">{t.expiry ? t.expiry.slice(0, 10) : "—"}</td>
                   <td className={`px-3 py-2 ${t.premium >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    ${t.premium.toFixed(2)}
+                    {isStock ? "—" : `$${t.premium.toFixed(2)}`}
                   </td>
-                  <td className="px-3 py-2">{t.contracts}</td>
+                  <td className="px-3 py-2">{isStock ? `${t.contracts} shr` : t.contracts}</td>
                   <td className={`px-3 py-2 font-medium ${total >= 0 ? "text-green-600" : "text-red-600"}`}>
                     {fmt(total)}
                   </td>

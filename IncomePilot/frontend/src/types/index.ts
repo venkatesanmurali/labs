@@ -183,10 +183,10 @@ export interface StrategyConfig {
 export interface OptionTrade {
   id: number;
   symbol: string;
-  strategy_type: "CC" | "CSP";
-  trade_type: "fresh" | "roll";
-  strike: number;
-  expiry: string;
+  strategy_type: "CC" | "CSP" | "STOCK";
+  trade_type: "fresh" | "roll" | "sell";
+  strike: number | null;
+  expiry: string | null;
   premium: number;
   contracts: number;
   trade_date: string;
@@ -200,13 +200,14 @@ export interface OptionTradeCreate {
   symbol: string;
   strategy_type: string;
   trade_type: string;
-  strike: number;
-  expiry: string;
+  strike?: number | null;
+  expiry?: string | null;
   premium: number;
   contracts: number;
   trade_date: string;
   owner: string;
   notes?: string | null;
+  avg_cost?: number | null;
 }
 
 /* ── Income & Net Worth ──────────────────────────────────────────────── */
@@ -214,6 +215,7 @@ export interface MonthlyIncome {
   month: string;
   cc_income: number;
   csp_income: number;
+  stock_pnl: number;
   total_income: number;
   trade_count: number;
 }
@@ -222,7 +224,7 @@ export interface IncomeReport {
   start_date: string;
   end_date: string;
   monthly_breakdown: MonthlyIncome[];
-  totals: { cc_total: number; csp_total: number };
+  totals: { cc_total: number; csp_total: number; stock_total: number };
   grand_total: number;
 }
 

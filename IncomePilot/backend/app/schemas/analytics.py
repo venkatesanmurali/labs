@@ -39,6 +39,7 @@ class MonthlyIncome(BaseModel):
     month: str  # "YYYY-MM"
     cc_income: float
     csp_income: float
+    stock_pnl: float = 0.0
     total_income: float
     trade_count: int
 

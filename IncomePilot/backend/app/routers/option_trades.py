@@ -28,7 +28,7 @@ router = APIRouter(prefix="/api/trades", tags=["trades"])
 @router.get("", response_model=List[OptionTradeOut])
 def list_trades(
     symbol: Optional[str] = None,
-    strategy_type: Optional[str] = Query(None, pattern=r"^(CC|CSP)$"),
+    strategy_type: Optional[str] = Query(None, pattern=r"^(CC|CSP|STOCK)$"),
     owner: Optional[str] = Query(None, pattern=r"^(Venky|Bharg)$"),
     month: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}$"),  # YYYY-MM
     start_date: Optional[date] = None,
@@ -61,7 +61,7 @@ def list_trades(
 
 @router.post("", response_model=OptionTradeOut, status_code=201)
 def create_trade(payload: OptionTradeCreate, db: Session = Depends(get_db)):
-    t = OptionTrade(**payload.model_dump())
+    t = OptionTrade(**payload.model_dump(exclude={"avg_cost"}))
     db.add(t)
     db.commit()
     db.refresh(t)
@@ -86,40 +86,52 @@ def income_report(
     trades = q.all()
 
     monthly: dict[str, dict] = defaultdict(
-        lambda: {"cc_income": 0.0, "csp_income": 0.0, "trade_count": 0}
+        lambda: {"cc_income": 0.0, "csp_income": 0.0, "stock_pnl": 0.0, "trade_count": 0}
     )
 
     for t in trades:
         month_key = t.trade_date.strftime("%Y-%m")
-        total = t.premium * t.contracts * 100
+        if t.strategy_type == "STOCK":
+            total = t.premium  # already (sell - avg_cost) * shares
+        else:
+            total = t.premium * t.contracts * 100
         if t.strategy_type == "CC":
             monthly[month_key]["cc_income"] += total
-        else:
+        elif t.strategy_type == "CSP":
             monthly[month_key]["csp_income"] += total
+        else:
+            monthly[month_key]["stock_pnl"] += total
         monthly[month_key]["trade_count"] += 1
 
     breakdown = []
     for month in sorted(monthly.keys()):
         m = monthly[month]
+        month_total = m["cc_income"] + m["csp_income"] + m["stock_pnl"]
         breakdown.append(
             MonthlyIncome(
                 month=month,
                 cc_income=round(m["cc_income"], 2),
                 csp_income=round(m["csp_income"], 2),
-                total_income=round(m["cc_income"] + m["csp_income"], 2),
+                stock_pnl=round(m["stock_pnl"], 2),
+                total_income=round(month_total, 2),
                 trade_count=m["trade_count"],
             )
         )
 
     cc_total = sum(b.cc_income for b in breakdown)
     csp_total = sum(b.csp_income for b in breakdown)
+    stock_total = sum(b.stock_pnl for b in breakdown)
 
     return IncomeReport(
         start_date=str(start_date),
         end_date=str(end_date),
         monthly_breakdown=breakdown,
-        totals={"cc_total": round(cc_total, 2), "csp_total": round(csp_total, 2)},
-        grand_total=round(cc_total + csp_total, 2),
+        totals={
+            "cc_total": round(cc_total, 2),
+            "csp_total": round(csp_total, 2),
+            "stock_total": round(stock_total, 2),
+        },
+        grand_total=round(cc_total + csp_total + stock_total, 2),
     )
 
 
@@ -137,7 +149,10 @@ def ytd_pnl(
     total_income = 0.0
     total_losses = 0.0
     for t in trades:
-        total = t.premium * t.contracts * 100
+        if t.strategy_type == "STOCK":
+            total = t.premium  # already (sell - avg_cost) * shares
+        else:
+            total = t.premium * t.contracts * 100
         if total >= 0:
             total_income += total
         else:
@@ -231,7 +246,7 @@ async def import_csv(file: UploadFile = File(...), db: Session = Depends(get_db)
             if strategy_type not in ("CC", "CSP"):
                 raise ValueError(f"Invalid strategy type: {strategy_type}")
             strike = float(row["Strike price"])
-            expiry = _parse_date_str(row["Expiry"])
+            expiry = datetime.strptime(_parse_date_str(row["Expiry"]), "%Y-%m-%d")
             amount = float(row["Amount"])
             owner = row["Who"].strip()
             if owner not in ("Venky", "Bharg"):
