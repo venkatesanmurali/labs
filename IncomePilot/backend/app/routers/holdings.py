@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
+from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
@@ -19,6 +21,8 @@ from app.schemas.holding import (
     HoldingUpdate,
 )
 from app.schemas.analytics import NetWorthHolding, NetWorthSummary
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/holdings", tags=["holdings"])
 
@@ -63,14 +67,54 @@ def net_worth(db: Session = Depends(get_db)):
     total = 0.0
     by_owner: dict[str, float] = {}
 
+    # Fetch actual option mid prices for LEAPS holdings via yfinance
+    option_mid_prices: dict[int, float] = {}
+    leaps_holdings = [h for h in holdings if h.holding_type == "leaps" and h.strike and h.expiry]
+    if leaps_holdings:
+        try:
+            import yfinance as yf
+
+            # Group by symbol to minimize API calls
+            leaps_by_symbol: dict[str, list] = {}
+            for h in leaps_holdings:
+                leaps_by_symbol.setdefault(h.symbol, []).append(h)
+
+            for sym, hs in leaps_by_symbol.items():
+                try:
+                    ticker = yf.Ticker(sym)
+                    exp_dates = ticker.options  # available expiry dates
+
+                    for h in hs:
+                        # Find matching expiry in available dates
+                        h_expiry = str(h.expiry)[:10]  # normalize to YYYY-MM-DD
+                        if h_expiry in exp_dates:
+                            chain = ticker.option_chain(h_expiry)
+                            df = chain.calls if h.option_type == "call" else chain.puts
+                            match = df[df["strike"] == h.strike]
+                            if not match.empty:
+                                row = match.iloc[0]
+                                bid = float(row.get("bid", 0) or 0)
+                                ask = float(row.get("ask", 0) or 0)
+                                mid = (bid + ask) / 2 if (bid + ask) > 0 else float(row.get("lastPrice", 0) or 0)
+                                option_mid_prices[h.id] = mid
+                except Exception as e:
+                    logger.warning(f"Failed to fetch option prices for {sym}: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to import yfinance for option pricing: {e}")
+
     for h in holdings:
         price = prices.get(h.symbol, 0.0)
         if h.holding_type == "leaps" and h.strike is not None:
-            if h.option_type == "call":
-                intrinsic = max(0.0, price - h.strike)
+            if h.id in option_mid_prices:
+                # Use actual market mid price
+                market_value = option_mid_prices[h.id] * 100 * h.shares
             else:
-                intrinsic = max(0.0, h.strike - price)
-            market_value = intrinsic * 100 * h.shares
+                # Fallback to intrinsic value
+                if h.option_type == "call":
+                    intrinsic = max(0.0, price - h.strike)
+                else:
+                    intrinsic = max(0.0, h.strike - price)
+                market_value = intrinsic * 100 * h.shares
         else:
             market_value = price * h.shares
 
