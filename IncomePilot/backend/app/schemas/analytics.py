@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -30,3 +30,46 @@ class AnalyticsDashboard(BaseModel):
     monthly_premiums: List[MonthlyPremium]
     delta_distribution: List[DeltaBucket]
     pnl: PnLSummary
+
+
+# ── Income & Net Worth ────────────────────────────────────────────────────
+
+
+class MonthlyIncome(BaseModel):
+    month: str  # "YYYY-MM"
+    cc_income: float
+    csp_income: float
+    total_income: float
+    trade_count: int
+
+
+class IncomeReport(BaseModel):
+    start_date: str
+    end_date: str
+    monthly_breakdown: List[MonthlyIncome]
+    totals: Dict[str, float]  # cc_total, csp_total
+    grand_total: float
+
+
+class YTDPnL(BaseModel):
+    total_premium_collected: float
+    total_losses: float
+    net_pnl: float
+    trade_count: int
+
+
+class NetWorthHolding(BaseModel):
+    symbol: str
+    owner: str
+    holding_type: str
+    shares: int
+    avg_cost: float
+    current_price: float
+    market_value: float
+    pct_of_total: float
+
+
+class NetWorthSummary(BaseModel):
+    total_net_worth: float
+    holdings: List[NetWorthHolding]
+    by_owner: Dict[str, float]

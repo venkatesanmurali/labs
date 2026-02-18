@@ -17,9 +17,15 @@ class Holding(Base):
     symbol: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
     shares: Mapped[int] = mapped_column(Integer, nullable=False)
     avg_cost: Mapped[float] = mapped_column(Float, nullable=False)
-    account_type: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="taxable"
-    )  # taxable | retirement
+    owner: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="Venky"
+    )  # Venky | Bharg
+    holding_type: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="stock"
+    )  # stock | leaps
+    strike: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    expiry: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    option_type: Mapped[Optional[str]] = mapped_column(String(4), nullable=True)  # call | put
     tags: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     created_at: Mapped[str] = mapped_column(
         DateTime, server_default=func.now(), nullable=False

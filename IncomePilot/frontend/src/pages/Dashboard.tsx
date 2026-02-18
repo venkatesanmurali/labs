@@ -11,8 +11,8 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { journalApi } from "../api/client";
-import type { AnalyticsDashboard } from "../types";
+import { journalApi, holdingsApi } from "../api/client";
+import type { AnalyticsDashboard, NetWorthSummary } from "../types";
 
 const COLORS = [
   "#22c55e",
@@ -26,49 +26,65 @@ const COLORS = [
 
 export default function Dashboard() {
   const [data, setData] = useState<AnalyticsDashboard | null>(null);
+  const [netWorth, setNetWorth] = useState<NetWorthSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    journalApi
-      .dashboard()
-      .then(setData)
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    Promise.all([
+      journalApi.dashboard().catch(() => null),
+      holdingsApi.netWorth().catch(() => null),
+    ]).then(([d, nw]) => {
+      setData(d);
+      setNetWorth(nw);
+      setLoading(false);
+    });
   }, []);
 
   if (loading)
     return <p className="text-gray-500">Loading dashboard...</p>;
 
-  if (!data)
-    return (
-      <p className="text-gray-500">
-        No journal data yet. Sell some covered calls and save to the journal!
-      </p>
-    );
-
-  const { monthly_premiums, delta_distribution, pnl } = data;
+  const pnl = data?.pnl;
+  const monthly_premiums = data?.monthly_premiums || [];
+  const delta_distribution = data?.delta_distribution || [];
 
   return (
     <div className="space-y-8">
       <h2 className="text-2xl font-bold">Dashboard</h2>
 
       {/* ── KPI cards ────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card
-          label="Premium Collected"
-          value={`$${pnl.total_premium_collected.toLocaleString()}`}
-        />
-        <Card
-          label="Realized P&L"
-          value={`$${pnl.realized_pnl.toLocaleString()}`}
-          color={pnl.realized_pnl >= 0 ? "text-green-600" : "text-red-600"}
-        />
-        <Card label="Open Positions" value={String(pnl.open_positions)} />
-        <Card
-          label="Unrealized (est.)"
-          value={`$${pnl.unrealized_estimate.toLocaleString()}`}
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {netWorth && netWorth.total_net_worth > 0 && (
+          <Card
+            label="Family Net Worth"
+            value={`$${netWorth.total_net_worth.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+            color="text-green-600"
+          />
+        )}
+        {pnl && (
+          <>
+            <Card
+              label="Premium Collected"
+              value={`$${pnl.total_premium_collected.toLocaleString()}`}
+            />
+            <Card
+              label="Realized P&L"
+              value={`$${pnl.realized_pnl.toLocaleString()}`}
+              color={pnl.realized_pnl >= 0 ? "text-green-600" : "text-red-600"}
+            />
+            <Card label="Open Positions" value={String(pnl.open_positions)} />
+            <Card
+              label="Unrealized (est.)"
+              value={`$${pnl.unrealized_estimate.toLocaleString()}`}
+            />
+          </>
+        )}
       </div>
+
+      {!data && !netWorth && (
+        <p className="text-gray-500">
+          No data yet. Add holdings in Portfolio or sell some covered calls!
+        </p>
+      )}
 
       {/* ── Charts ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

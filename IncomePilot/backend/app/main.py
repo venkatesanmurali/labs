@@ -18,6 +18,7 @@ from app.routers import (
     holdings_router,
     journal_router,
     market_data_router,
+    option_trades_router,
     recommendations_router,
     roll_router,
     strategy_router,
@@ -55,6 +56,7 @@ app.include_router(roll_router)
 app.include_router(journal_router)
 app.include_router(strategy_router)
 app.include_router(market_data_router)
+app.include_router(option_trades_router)
 
 
 @app.get("/api/health")

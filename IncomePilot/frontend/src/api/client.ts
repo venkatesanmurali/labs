@@ -15,6 +15,11 @@ import type {
   AnalyticsDashboard,
   StrategyConfig,
   Quote,
+  OptionTrade,
+  OptionTradeCreate,
+  IncomeReport,
+  YTDPnL,
+  NetWorthSummary,
 } from "../types";
 
 const BASE = "/api";
@@ -35,7 +40,8 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 /* ── Holdings ─────────────────────────────────────────────────────────── */
 
 export const holdingsApi = {
-  list: () => request<Holding[]>("/holdings"),
+  list: (owner?: string) =>
+    request<Holding[]>(`/holdings${owner ? `?owner=${owner}` : ""}`),
 
   create: (data: HoldingCreate) =>
     request<Holding>("/holdings", {
@@ -65,6 +71,8 @@ export const holdingsApi = {
 
   loadDemo: () =>
     request<Holding[]>("/holdings/demo", { method: "POST" }),
+
+  netWorth: () => request<NetWorthSummary>("/holdings/net-worth"),
 };
 
 /* ── Market Data ──────────────────────────────────────────────────────── */
@@ -129,4 +137,60 @@ export const settingsApi = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+};
+
+/* ── Trades ───────────────────────────────────────────────────────────── */
+
+export const tradesApi = {
+  list: (params?: {
+    symbol?: string;
+    strategy_type?: string;
+    owner?: string;
+    start_date?: string;
+    end_date?: string;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.symbol) qs.set("symbol", params.symbol);
+    if (params?.strategy_type) qs.set("strategy_type", params.strategy_type);
+    if (params?.owner) qs.set("owner", params.owner);
+    if (params?.start_date) qs.set("start_date", params.start_date);
+    if (params?.end_date) qs.set("end_date", params.end_date);
+    const q = qs.toString();
+    return request<OptionTrade[]>(`/trades${q ? `?${q}` : ""}`);
+  },
+
+  create: (data: OptionTradeCreate) =>
+    request<OptionTrade>("/trades", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: number, data: Partial<OptionTradeCreate>) =>
+    request<OptionTrade>(`/trades/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  remove: (id: number) =>
+    request<void>(`/trades/${id}`, { method: "DELETE" }),
+
+  importCSV: async (file: File): Promise<CSVImportResult> => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${BASE}/trades/import-csv`, {
+      method: "POST",
+      body: form,
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+  incomeReport: (startDate: string, endDate: string, owner?: string) => {
+    const qs = new URLSearchParams({ start_date: startDate, end_date: endDate });
+    if (owner) qs.set("owner", owner);
+    return request<IncomeReport>(`/trades/income-report?${qs}`);
+  },
+
+  ytdPnl: (owner?: string) =>
+    request<YTDPnL>(`/trades/ytd-pnl${owner ? `?owner=${owner}` : ""}`),
 };

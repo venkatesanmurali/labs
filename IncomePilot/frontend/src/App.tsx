@@ -1,6 +1,7 @@
 import { Routes, Route, NavLink } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import Portfolio from "./pages/Portfolio";
+import Trades from "./pages/Trades";
 import Recommendations from "./pages/Recommendations";
 import RollAssistant from "./pages/RollAssistant";
 import Settings from "./pages/Settings";
@@ -8,6 +9,7 @@ import Settings from "./pages/Settings";
 const NAV = [
   { to: "/", label: "Dashboard" },
   { to: "/portfolio", label: "Portfolio" },
+  { to: "/trades", label: "Trades" },
   { to: "/recommendations", label: "Recommendations" },
   { to: "/roll", label: "Roll Assistant" },
   { to: "/settings", label: "Settings" },
@@ -46,6 +48,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/portfolio" element={<Portfolio />} />
+          <Route path="/trades" element={<Trades />} />
           <Route path="/recommendations" element={<Recommendations />} />
           <Route path="/roll" element={<RollAssistant />} />
           <Route path="/settings" element={<Settings />} />

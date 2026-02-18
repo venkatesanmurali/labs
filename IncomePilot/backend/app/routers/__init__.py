@@ -4,6 +4,7 @@ from app.routers.roll import router as roll_router
 from app.routers.journal import router as journal_router
 from app.routers.strategy import router as strategy_router
 from app.routers.market_data import router as market_data_router
+from app.routers.option_trades import router as option_trades_router
 
 __all__ = [
     "holdings_router",
@@ -12,4 +13,5 @@ __all__ = [
     "journal_router",
     "strategy_router",
     "market_data_router",
+    "option_trades_router",
 ]

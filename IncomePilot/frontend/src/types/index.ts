@@ -4,7 +4,11 @@ export interface Holding {
   symbol: string;
   shares: number;
   avg_cost: number;
-  account_type: "taxable" | "retirement";
+  owner: "Venky" | "Bharg";
+  holding_type: "stock" | "leaps";
+  strike: number | null;
+  expiry: string | null;
+  option_type: "call" | "put" | null;
   tags: string | null;
   created_at: string;
   updated_at: string;
@@ -14,7 +18,11 @@ export interface HoldingCreate {
   symbol: string;
   shares: number;
   avg_cost: number;
-  account_type: string;
+  owner: string;
+  holding_type: string;
+  strike?: number | null;
+  expiry?: string | null;
+  option_type?: string | null;
   tags?: string | null;
 }
 
@@ -169,4 +177,75 @@ export interface StrategyConfig {
   w_distance: number;
   w_earnings_safety: number;
   roll_max_debit: number;
+}
+
+/* ── Option Trades ────────────────────────────────────────────────────── */
+export interface OptionTrade {
+  id: number;
+  symbol: string;
+  strategy_type: "CC" | "CSP";
+  trade_type: "fresh" | "roll";
+  strike: number;
+  expiry: string;
+  premium: number;
+  contracts: number;
+  trade_date: string;
+  owner: "Venky" | "Bharg";
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OptionTradeCreate {
+  symbol: string;
+  strategy_type: string;
+  trade_type: string;
+  strike: number;
+  expiry: string;
+  premium: number;
+  contracts: number;
+  trade_date: string;
+  owner: string;
+  notes?: string | null;
+}
+
+/* ── Income & Net Worth ──────────────────────────────────────────────── */
+export interface MonthlyIncome {
+  month: string;
+  cc_income: number;
+  csp_income: number;
+  total_income: number;
+  trade_count: number;
+}
+
+export interface IncomeReport {
+  start_date: string;
+  end_date: string;
+  monthly_breakdown: MonthlyIncome[];
+  totals: { cc_total: number; csp_total: number };
+  grand_total: number;
+}
+
+export interface YTDPnL {
+  total_premium_collected: number;
+  total_losses: number;
+  net_pnl: number;
+  trade_count: number;
+}
+
+export interface NetWorthHolding {
+  symbol: string;
+  owner: string;
+  holding_type: string;
+  shares: number;
+  avg_cost: number;
+  current_price: number;
+  market_value: number;
+  pct_of_total: number;
+}
+
+export interface NetWorthSummary {
+  total_net_worth: number;
+  holdings: NetWorthHolding[];
+  by_owner: Record<string, number>;
 }
