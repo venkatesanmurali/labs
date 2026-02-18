@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     tradier_api_key: str = ""
     tradier_sandbox: bool = True
 
+    # ── AI / Earnings analysis ───────────────────────────────────────────
+    anthropic_api_key: str = ""
+    ai_model: str = "claude-sonnet-4-20250514"
+
     # ── CORS ──────────────────────────────────────────────────────────────
     cors_origins: List[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 

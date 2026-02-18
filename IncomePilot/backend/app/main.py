@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import init_db
 from app.routers import (
+    earnings_router,
     holdings_router,
     journal_router,
     market_data_router,
@@ -57,6 +58,7 @@ app.include_router(journal_router)
 app.include_router(strategy_router)
 app.include_router(market_data_router)
 app.include_router(option_trades_router)
+app.include_router(earnings_router)
 
 
 @app.get("/api/health")

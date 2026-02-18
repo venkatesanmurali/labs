@@ -20,6 +20,7 @@ import type {
   IncomeReport,
   YTDPnL,
   NetWorthSummary,
+  EarningsAnalysisResponse,
 } from "../types";
 
 const BASE = "/api";
@@ -195,4 +196,11 @@ export const tradesApi = {
 
   ytdPnl: (owner?: string) =>
     request<YTDPnL>(`/trades/ytd-pnl${owner ? `?owner=${owner}` : ""}`),
+};
+
+/* ── Earnings ────────────────────────────────────────────────────────── */
+
+export const earningsApi = {
+  analyze: (symbol: string) =>
+    request<EarningsAnalysisResponse>(`/earnings/analyze/${encodeURIComponent(symbol)}`),
 };

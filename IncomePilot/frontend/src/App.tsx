@@ -4,6 +4,7 @@ import Portfolio from "./pages/Portfolio";
 import Trades from "./pages/Trades";
 import Recommendations from "./pages/Recommendations";
 import RollAssistant from "./pages/RollAssistant";
+import EarningsTime from "./pages/EarningsTime";
 import Settings from "./pages/Settings";
 
 const NAV = [
@@ -12,6 +13,7 @@ const NAV = [
   { to: "/trades", label: "Trades" },
   { to: "/recommendations", label: "Recommendations" },
   { to: "/roll", label: "Roll Assistant" },
+  { to: "/earnings", label: "Earnings Time" },
   { to: "/settings", label: "Settings" },
 ];
 
@@ -51,6 +53,7 @@ export default function App() {
           <Route path="/trades" element={<Trades />} />
           <Route path="/recommendations" element={<Recommendations />} />
           <Route path="/roll" element={<RollAssistant />} />
+          <Route path="/earnings" element={<EarningsTime />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>

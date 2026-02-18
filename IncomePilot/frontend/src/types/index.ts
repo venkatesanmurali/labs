@@ -251,3 +251,77 @@ export interface NetWorthSummary {
   holdings: NetWorthHolding[];
   by_owner: Record<string, number>;
 }
+
+/* ── Earnings Time ───────────────────────────────────────────────────── */
+export interface EPSQuarter {
+  quarter: string;
+  actual: number | null;
+  estimate: number | null;
+  surprise_pct: number | null;
+  beat: boolean | null;
+}
+
+export interface RevenueQuarter {
+  quarter: string;
+  revenue: number | null;
+  yoy_growth_pct: number | null;
+}
+
+export interface AnalystTargets {
+  low: number | null;
+  median: number | null;
+  high: number | null;
+  number_of_analysts: number | null;
+}
+
+export interface EarningsFinancials {
+  eps_history: EPSQuarter[];
+  revenue_history: RevenueQuarter[];
+  pe_ratio: number | null;
+  forward_pe: number | null;
+  market_cap: number | null;
+  ebitda: number | null;
+  profit_margin: number | null;
+  debt_to_equity: number | null;
+  analyst_targets: AnalystTargets | null;
+  recommendation_distribution: Record<string, number> | null;
+  price_change_30d_pct: number | null;
+  price_change_90d_pct: number | null;
+  implied_volatility: number | null;
+  sector: string | null;
+  industry: string | null;
+}
+
+export interface EarningsPrediction {
+  direction: "UP" | "DOWN";
+  magnitude_pct: number;
+  magnitude_price: number;
+  confidence: number;
+}
+
+export interface OptionsRecommendation {
+  viable: boolean;
+  strategy: "CALL" | "PUT" | null;
+  suggested_strike: number | null;
+  suggested_expiry: string | null;
+  rationale: string | null;
+}
+
+export interface KeyMetric {
+  name: string;
+  value: string;
+  sentiment: "bullish" | "bearish" | "neutral";
+}
+
+export interface EarningsAnalysisResponse {
+  ticker: string;
+  company_name: string;
+  current_price: number;
+  earnings_date: string | null;
+  financials: EarningsFinancials;
+  prediction: EarningsPrediction;
+  options_recommendation: OptionsRecommendation;
+  analysis_summary: string;
+  key_metrics: KeyMetric[];
+  risk_factors: string[];
+}
