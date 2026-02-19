@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sarvam-video-translator"
+version = "0.1.0"
+description = "CLI tool to translate and dub video using Sarvam AI APIs"
+requires-python = ">=3.9"
+dependencies = [
+    "httpx>=0.25",
+    "python-dotenv>=1.0",
+    "rich>=13.0",
+    "deep-translator>=1.11",
+    "gTTS>=2.3",
+]
+
+[project.scripts]
+svt = "svt.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["svt*"]
