@@ -1,0 +1,9 @@
+# Small Office Building
+Lobby: 20 sqm
+2x Open Office: 40 sqm
+Conference Room: 25 sqm
+2x Private Office: 15 sqm
+Kitchen: 12 sqm
+2x Bathroom: 6 sqm
+Server Room: 10 sqm
+Storage: 8 sqm

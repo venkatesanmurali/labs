@@ -1,0 +1,21 @@
+{
+  "project_name": "Sample Residence",
+  "project_number": "RES-001",
+  "client": "John Doe",
+  "rooms": [
+    {"name": "Living Room", "function": "living", "area": 25},
+    {"name": "Kitchen", "function": "kitchen", "area": 15},
+    {"name": "Master Bedroom", "function": "bedroom", "area": 18},
+    {"name": "Bedroom 2", "function": "bedroom", "area": 14},
+    {"name": "Bathroom 1", "function": "bathroom", "area": 7},
+    {"name": "Bathroom 2", "function": "bathroom", "area": 5},
+    {"name": "Dining Room", "function": "dining", "area": 12},
+    {"name": "Entry", "function": "lobby", "area": 5}
+  ],
+  "constraints": {
+    "max_footprint_width": 25,
+    "max_footprint_depth": 18,
+    "floor_to_floor_height": 3.0
+  },
+  "notes": "Two-bedroom residence with separate dining area."
+}

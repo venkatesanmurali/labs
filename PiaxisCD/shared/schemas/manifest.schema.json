@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PiaxisCD Export Manifest",
+  "type": "object",
+  "properties": {
+    "project_name": { "type": "string" },
+    "project_number": { "type": "string" },
+    "revision": { "type": "integer" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "generator": { "type": "string" },
+    "total_sheets": { "type": "integer" },
+    "formats": { "type": "array", "items": { "type": "string" } },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "filename": { "type": "string" },
+          "format": { "type": "string", "enum": ["dxf", "ifc", "pdf", "png"] },
+          "size_bytes": { "type": "integer" },
+          "sheet_number": { "type": "string" },
+          "description": { "type": "string" }
+        },
+        "required": ["filename", "format"]
+      }
+    }
+  },
+  "required": ["project_name", "files"]
+}
