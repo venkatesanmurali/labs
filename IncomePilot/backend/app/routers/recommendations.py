@@ -7,6 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.database import get_db
 from app.engines.recommendation_engine import recommend_covered_calls, recommend_cash_secured_puts
 from app.models.strategy_config import StrategyConfig
@@ -28,8 +29,18 @@ def get_recommendations(
 ):
     cfg = _load_strategy(db)
     provider = get_provider()
+    settings = get_settings()
 
-    kwargs: dict = {}
+    kwargs: dict = {
+        "w_theta_efficiency": settings.w_theta_efficiency,
+        "w_spread": settings.w_spread,
+        "liquidity_oi_threshold": settings.liquidity_oi_threshold,
+        "liquidity_volume_threshold": settings.liquidity_volume_threshold,
+        "distance_peak_otm": settings.distance_peak_otm,
+        "distance_range": settings.distance_range,
+        "spread_min_pct": settings.spread_min_pct,
+        "spread_max_pct": settings.spread_max_pct,
+    }
     if cfg:
         kwargs.update(
             target_delta_min=cfg.target_delta_min,

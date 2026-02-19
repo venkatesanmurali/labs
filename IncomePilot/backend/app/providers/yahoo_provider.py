@@ -15,6 +15,7 @@ from typing import Optional
 
 import yfinance as yf
 
+from app.config import get_settings
 from app.providers.base import MarketDataProvider
 from app.schemas.market_data import (
     EarningsDate,
@@ -24,9 +25,6 @@ from app.schemas.market_data import (
 )
 
 logger = logging.getLogger(__name__)
-
-# US 10-year treasury proxy — update periodically or fetch dynamically
-_RISK_FREE_RATE = 0.045
 
 
 # ── NaN-safe helpers ──────────────────────────────────────────────────────
@@ -113,6 +111,17 @@ def _bs_theta(S: float, K: float, T: float, sigma: float, r: float) -> float:
     return round((term1 + term2) / 365.0, 4)
 
 
+def _bs_vega(S: float, K: float, T: float, sigma: float, r: float) -> float:
+    """
+    Call/put vega (same for both) = S * n(d1) * √T.
+    Returns vega per 1-point (0.01) change in IV.
+    """
+    if sigma <= 0 or T <= 0 or S <= 0 or K <= 0:
+        return 0.0
+    d1 = _bs_d1(S, K, T, sigma, r)
+    return round(S * _norm_pdf(d1) * math.sqrt(T) / 100, 4)
+
+
 def _implied_vol_from_price(
     S: float, K: float, T: float, market_price: float, r: float
 ) -> float:
@@ -173,7 +182,7 @@ class YahooFinanceProvider(MarketDataProvider):
         ticker = yf.Ticker(symbol)
         spot = float(ticker.fast_info.last_price)
         today = as_of_date or date.today()
-        r = _RISK_FREE_RATE
+        r = get_settings().risk_free_rate
 
         expirations = ticker.options  # list of "YYYY-MM-DD" strings
         if not expirations:
@@ -208,6 +217,14 @@ class YahooFinanceProvider(MarketDataProvider):
                     bid = _safe_float(row.get("bid"))
                     ask = _safe_float(row.get("ask"))
                     last = _safe_float(row.get("lastPrice"))
+
+                    # When bid/ask are stale (both zero, e.g. after-hours),
+                    # estimate from lastPrice with a synthetic spread.
+                    if bid <= 0 and ask <= 0 and last > 0:
+                        spread = max(0.05, round(last * 0.05, 2))
+                        bid = round(max(0.01, last - spread / 2), 2)
+                        ask = round(last + spread / 2, 2)
+
                     mid = round((bid + ask) / 2, 2) if (bid + ask) > 0 else last
                     iv = _safe_float(row.get("impliedVolatility"))
                     oi = _safe_int(row.get("openInterest"))
@@ -234,6 +251,7 @@ class YahooFinanceProvider(MarketDataProvider):
                         delta = round(_bs_delta(spot, strike, T, iv, r) - 1.0, 4)
                     gamma = _bs_gamma(spot, strike, T, iv, r)
                     theta = _bs_theta(spot, strike, T, iv, r)
+                    vega = _bs_vega(spot, strike, T, iv, r)
 
                     contracts.append(
                         OptionContract(
@@ -249,6 +267,7 @@ class YahooFinanceProvider(MarketDataProvider):
                             delta=delta,
                             gamma=gamma,
                             theta=theta,
+                            vega=vega,
                             open_interest=oi,
                             volume=vol,
                             dte=dte,

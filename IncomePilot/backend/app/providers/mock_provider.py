@@ -118,6 +118,9 @@ def _generate_chain(
             n_prime_d1 = math.exp(-0.5 * d1**2) / math.sqrt(2 * math.pi)
             theta = -(spot * iv_base * n_prime_d1) / (2 * sqrt_t * 365)
 
+            # Vega approximation: vega = S * N'(d1) * √T / 100
+            vega = spot * n_prime_d1 * sqrt_t / 100
+
             # IV skew: OTM puts have higher IV
             iv = round(iv_base * (1 + 0.1 * (spot - strike) / spot), 4)
 
@@ -159,6 +162,7 @@ def _generate_chain(
                         delta=round(delta, 4),
                         gamma=round(gamma, 6),
                         theta=round(theta, 4),
+                        vega=round(vega, 4),
                         open_interest=oi,
                         volume=vol,
                         dte=dte,

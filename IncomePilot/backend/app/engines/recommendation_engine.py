@@ -76,24 +76,37 @@ def score_delta_fit(
     return _clamp(1 - (delta - target_max) / 0.2)
 
 
-def score_liquidity(open_interest: int, volume: int) -> float:
+def score_liquidity(
+    open_interest: int,
+    volume: int,
+    *,
+    oi_threshold: int = 1000,
+    volume_threshold: int = 500,
+) -> float:
     """
     Combined OI + volume score.
-    OI score: 0 at 0, 1 at 1000+
-    Volume score: 0 at 0, 1 at 500+
+    OI score: 0 at 0, 1 at oi_threshold+
+    Volume score: 0 at 0, 1 at volume_threshold+
     Final = 0.6 * OI_score + 0.4 * volume_score
     """
-    oi_score = _clamp(open_interest / 1000)
-    vol_score = _clamp(volume / 500)
+    oi_score = _clamp(open_interest / oi_threshold) if oi_threshold > 0 else 1.0
+    vol_score = _clamp(volume / volume_threshold) if volume_threshold > 0 else 1.0
     return 0.6 * oi_score + 0.4 * vol_score
 
 
-def score_distance(moneyness_pct: float) -> float:
+def score_distance(
+    moneyness_pct: float,
+    *,
+    peak_otm: float = 0.05,
+    dist_range: float = 0.10,
+) -> float:
     """
-    Prefer 2-8 % OTM.  Score peaks at 5 % OTM (moneyness_pct = 0.05).
-    formula: 1 - |moneyness - 0.05| / 0.10  clamped [0, 1]
+    Prefer 2-8 % OTM.  Score peaks at peak_otm OTM.
+    formula: 1 - |moneyness - peak_otm| / dist_range  clamped [0, 1]
     """
-    return _clamp(1 - abs(moneyness_pct - 0.05) / 0.10)
+    if dist_range <= 0:
+        return 1.0
+    return _clamp(1 - abs(moneyness_pct - peak_otm) / dist_range)
 
 
 def score_earnings_safety(
@@ -106,6 +119,39 @@ def score_earnings_safety(
     if _in_earnings_window(expiry, earnings_date, before_days, after_days):
         return 0.0
     return 1.0
+
+
+def score_theta_efficiency(theta: float, bid: float) -> float:
+    """
+    Theta efficiency = abs(theta) / bid, normalized.
+    Rewards faster daily decay relative to premium collected.
+    Score: 0 at 0%, 1 at 5%+ of bid decaying per day, linear between.
+    """
+    if bid <= 0:
+        return 0.0
+    ratio = abs(theta) / bid
+    return _clamp(ratio / 0.05)
+
+
+def score_spread(
+    bid: float,
+    ask: float,
+    *,
+    min_pct: float = 0.02,
+    max_pct: float = 0.20,
+) -> float:
+    """
+    Spread penalty based on bid-ask width relative to mid.
+    1.0 when spread < min_pct of mid, 0.0 when > max_pct, linear between.
+    """
+    mid = (bid + ask) / 2
+    if mid <= 0:
+        return 0.0
+    spread_pct = (ask - bid) / mid
+    denom = max_pct - min_pct
+    if denom <= 0:
+        return 1.0
+    return _clamp(1.0 - (spread_pct - min_pct) / denom)
 
 
 # ── Main engine ───────────────────────────────────────────────────────────
@@ -132,9 +178,18 @@ def recommend_covered_calls(
     w_liquidity: float = 0.20,
     w_distance: float = 0.10,
     w_earnings_safety: float = 0.10,
+    w_theta_efficiency: float = 0.0,
+    w_spread: float = 0.0,
     # Misc
     top_n: int = 3,
     dte_range: Tuple[int, int] = (1, 60),
+    # Liquidity & distance thresholds
+    liquidity_oi_threshold: int = 1000,
+    liquidity_volume_threshold: int = 500,
+    distance_peak_otm: float = 0.05,
+    distance_range: float = 0.10,
+    spread_min_pct: float = 0.02,
+    spread_max_pct: float = 0.20,
 ) -> RecommendationResponse:
     """Run the full recommendation pipeline and return top-N candidates."""
 
@@ -179,14 +234,30 @@ def recommend_covered_calls(
         premium_yield_pct = (bid / spot) * 100 if spot > 0 else 0
         annualized_yield_pct = premium_yield_pct * (365 / c.dte) if c.dte > 0 else 0
         moneyness_pct = (c.strike - spot) / spot if spot > 0 else 0
+        spread_width = round(c.ask - c.bid, 2)
+        theta_daily_dollar = round(abs(c.theta) * 100, 2)  # per contract
 
         # Sub-scores (each 0-1)
         s_yield = score_yield(annualized_yield_pct, min_annualized_yield)
         s_delta = score_delta_fit(abs(c.delta), target_delta_min, target_delta_max)
-        s_liq = score_liquidity(c.open_interest, c.volume)
-        s_dist = score_distance(moneyness_pct)
+        s_liq = score_liquidity(
+            c.open_interest, c.volume,
+            oi_threshold=liquidity_oi_threshold,
+            volume_threshold=liquidity_volume_threshold,
+        )
+        s_dist = score_distance(
+            moneyness_pct,
+            peak_otm=distance_peak_otm,
+            dist_range=distance_range,
+        )
         s_earn = score_earnings_safety(
             c.expiry, earnings_date, avoid_earnings_before, avoid_earnings_after
+        )
+        s_theta_eff = score_theta_efficiency(c.theta, bid)
+        s_spread = score_spread(
+            bid, c.ask,
+            min_pct=spread_min_pct,
+            max_pct=spread_max_pct,
         )
 
         composite = (
@@ -195,6 +266,8 @@ def recommend_covered_calls(
             + w_liquidity * s_liq
             + w_distance * s_dist
             + w_earnings_safety * s_earn
+            + w_theta_efficiency * s_theta_eff
+            + w_spread * s_spread
         )
         score_100 = round(composite * 100, 2)
 
@@ -229,6 +302,9 @@ def recommend_covered_calls(
                 prob_itm_proxy=round(abs(c.delta), 4),
                 delta=c.delta,
                 iv=c.iv,
+                vega=c.vega,
+                spread_width=spread_width,
+                theta_daily_dollar=theta_daily_dollar,
                 open_interest=c.open_interest,
                 volume=c.volume,
                 score=score_100,
@@ -271,8 +347,17 @@ def recommend_cash_secured_puts(
     w_liquidity: float = 0.20,
     w_distance: float = 0.10,
     w_earnings_safety: float = 0.10,
+    w_theta_efficiency: float = 0.0,
+    w_spread: float = 0.0,
     top_n: int = 3,
     dte_range: Tuple[int, int] = (1, 60),
+    # Liquidity & distance thresholds
+    liquidity_oi_threshold: int = 1000,
+    liquidity_volume_threshold: int = 500,
+    distance_peak_otm: float = 0.05,
+    distance_range: float = 0.10,
+    spread_min_pct: float = 0.02,
+    spread_max_pct: float = 0.20,
 ) -> RecommendationResponse:
     """Run the CSP recommendation pipeline: sell OTM puts below current price."""
 
@@ -317,13 +402,29 @@ def recommend_cash_secured_puts(
         annualized_yield_pct = premium_yield_pct * (365 / c.dte) if c.dte > 0 else 0
         # For puts, moneyness = how far OTM below spot (positive = OTM)
         moneyness_pct = (spot - c.strike) / spot if spot > 0 else 0
+        spread_width = round(c.ask - c.bid, 2)
+        theta_daily_dollar = round(abs(c.theta) * 100, 2)
 
         s_yield = score_yield(annualized_yield_pct, min_annualized_yield)
         s_delta = score_delta_fit(abs(c.delta), target_delta_min, target_delta_max)
-        s_liq = score_liquidity(c.open_interest, c.volume)
-        s_dist = score_distance(moneyness_pct)
+        s_liq = score_liquidity(
+            c.open_interest, c.volume,
+            oi_threshold=liquidity_oi_threshold,
+            volume_threshold=liquidity_volume_threshold,
+        )
+        s_dist = score_distance(
+            moneyness_pct,
+            peak_otm=distance_peak_otm,
+            dist_range=distance_range,
+        )
         s_earn = score_earnings_safety(
             c.expiry, earnings_date, avoid_earnings_before, avoid_earnings_after
+        )
+        s_theta_eff = score_theta_efficiency(c.theta, bid)
+        s_spread = score_spread(
+            bid, c.ask,
+            min_pct=spread_min_pct,
+            max_pct=spread_max_pct,
         )
 
         composite = (
@@ -332,6 +433,8 @@ def recommend_cash_secured_puts(
             + w_liquidity * s_liq
             + w_distance * s_dist
             + w_earnings_safety * s_earn
+            + w_theta_efficiency * s_theta_eff
+            + w_spread * s_spread
         )
         score_100 = round(composite * 100, 2)
 
@@ -366,6 +469,9 @@ def recommend_cash_secured_puts(
                 prob_itm_proxy=round(abs(c.delta), 4),
                 delta=c.delta,
                 iv=c.iv,
+                vega=c.vega,
+                spread_width=spread_width,
+                theta_daily_dollar=theta_daily_dollar,
                 open_interest=c.open_interest,
                 volume=c.volume,
                 score=score_100,

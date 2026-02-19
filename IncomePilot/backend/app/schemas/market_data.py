@@ -29,6 +29,7 @@ class OptionContract(BaseModel):
     delta: float
     gamma: float
     theta: float
+    vega: float = 0.0
     open_interest: int
     volume: int
     dte: int = Field(description="Days to expiration")

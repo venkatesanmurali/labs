@@ -130,6 +130,7 @@ class TradierProvider(MarketDataProvider):
                 delta = float(greeks.get("delta", 0) or 0)
                 gamma = float(greeks.get("gamma", 0) or 0)
                 theta = float(greeks.get("theta", 0) or 0)
+                vega = float(greeks.get("vega", 0) or 0)
                 iv = float(greeks.get("mid_iv", 0) or greeks.get("smv_vol", 0) or 0)
 
                 contracts.append(
@@ -146,6 +147,7 @@ class TradierProvider(MarketDataProvider):
                         delta=round(delta, 4),
                         gamma=round(gamma, 6),
                         theta=round(theta, 4),
+                        vega=round(vega, 4),
                         open_interest=oi,
                         volume=vol,
                         dte=dte,

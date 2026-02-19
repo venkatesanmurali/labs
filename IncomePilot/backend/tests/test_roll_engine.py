@@ -10,7 +10,7 @@ from typing import Optional
 
 import pytest
 
-from app.engines.roll_engine import evaluate_roll
+from app.engines.roll_engine import evaluate_roll, _compute_gamma_risk
 from app.providers.mock_provider import MockMarketDataProvider
 from app.schemas.roll import RollRequest
 
@@ -121,3 +121,38 @@ class TestRollAlternatives:
         req = _make_req(strike=340.0, dte=5, option_mid=6.0, spot=340.0)
         result = evaluate_roll(req, mock_provider)
         assert len(result.alternatives) <= 3
+
+
+class TestGammaRiskScore:
+    def test_gamma_risk_range(self, mock_provider: MockMarketDataProvider):
+        """gamma_risk_score should be between 0 and 1."""
+        req = _make_req(strike=335.0, dte=3, option_mid=8.00, spot=340.0)
+        result = evaluate_roll(req, mock_provider)
+        assert 0.0 <= result.gamma_risk_score <= 1.0
+
+    def test_compute_gamma_risk_zero_dte(self):
+        assert _compute_gamma_risk(0.01, 340.0, 0) == 0.0
+
+    def test_compute_gamma_risk_zero_gamma(self):
+        assert _compute_gamma_risk(0.0, 340.0, 5) == 0.0
+
+    def test_compute_gamma_risk_high(self):
+        """High gamma near expiry should produce high score."""
+        score = _compute_gamma_risk(0.05, 340.0, 1)
+        assert score > 0.5
+
+    def test_expected_pnl_if_flat_present(
+        self, mock_provider: MockMarketDataProvider
+    ):
+        """Roll alternatives should have expected_pnl_if_flat field."""
+        req = _make_req(strike=330.0, dte=5, option_mid=14.0, spot=340.0)
+        result = evaluate_roll(req, mock_provider)
+        for alt in result.alternatives:
+            assert hasattr(alt, "expected_pnl_if_flat")
+
+    def test_theta_remaining_pct(self, mock_provider: MockMarketDataProvider):
+        """RollDecision should include theta_remaining_pct."""
+        req = _make_req(strike=330.0, dte=10, option_mid=15.0, spot=340.0)
+        result = evaluate_roll(req, mock_provider)
+        assert hasattr(result, "theta_remaining_pct")
+        assert result.theta_remaining_pct >= 0

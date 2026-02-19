@@ -30,10 +30,20 @@ class RollAlternative(BaseModel):
     ask: float
     mid: float
     delta: float
+    gamma: float = 0.0
+    theta: float = 0.0
+    vega: float = 0.0
     net_credit: float = Field(
         description="Positive = credit received; negative = debit paid"
     )
     new_moneyness_pct: float
+    expected_pnl_if_flat: float = Field(
+        default=0.0,
+        description="Expected P&L if stock stays flat until expiry (theta decay estimate)",
+    )
+    gamma_risk_score: float = Field(
+        default=0.0, description="0-1 gamma risk indicator"
+    )
     explanation: str
 
 
@@ -46,4 +56,11 @@ class RollDecision(BaseModel):
     explanation: str
     current_extrinsic: float
     current_intrinsic: float
+    gamma_risk_score: float = Field(
+        default=0.0, description="0-1 gamma risk for current position"
+    )
+    theta_remaining_pct: float = Field(
+        default=0.0,
+        description="Remaining theta as % of original premium",
+    )
     alternatives: List[RollAlternative]

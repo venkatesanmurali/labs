@@ -15,6 +15,8 @@ from app.engines.recommendation_engine import (
     score_liquidity,
     score_distance,
     score_earnings_safety,
+    score_theta_efficiency,
+    score_spread,
     _in_earnings_window,
 )
 
@@ -144,3 +146,43 @@ class TestInEarningsWindow:
         assert not _in_earnings_window(
             date(2025, 4, 14), date(2025, 4, 22), 7, 2
         )
+
+
+# ── score_theta_efficiency ────────────────────────────────────────────
+
+
+class TestScoreThetaEfficiency:
+    def test_high_theta_relative_to_bid(self):
+        """theta/bid ratio of 0.05+ → 1.0."""
+        assert score_theta_efficiency(-0.10, 2.00) == 1.0
+
+    def test_zero_theta(self):
+        assert score_theta_efficiency(0.0, 2.00) == 0.0
+
+    def test_zero_bid(self):
+        assert score_theta_efficiency(-0.05, 0.0) == 0.0
+
+    def test_mid_range(self):
+        """theta/bid = 0.025 → 0.025/0.05 = 0.5."""
+        assert score_theta_efficiency(-0.05, 2.00) == pytest.approx(0.5)
+
+
+# ── score_spread ──────────────────────────────────────────────────────
+
+
+class TestScoreSpread:
+    def test_tight_spread(self):
+        """Spread < 2% of mid → 1.0."""
+        assert score_spread(10.00, 10.10) == pytest.approx(1.0)
+
+    def test_wide_spread(self):
+        """Spread > 20% of mid → 0.0."""
+        assert score_spread(1.00, 1.50) == 0.0
+
+    def test_mid_spread(self):
+        """Spread = 11% of mid → between 0 and 1."""
+        result = score_spread(1.00, 1.12)
+        assert 0.0 < result < 1.0
+
+    def test_zero_mid(self):
+        assert score_spread(0.0, 0.0) == 0.0

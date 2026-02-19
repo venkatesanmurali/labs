@@ -32,6 +32,9 @@ class CandidateMetrics(BaseModel):
     prob_itm_proxy: float
     delta: float
     iv: float
+    vega: float = 0.0
+    spread_width: float = 0.0
+    theta_daily_dollar: float = 0.0
     open_interest: int
     volume: int
 

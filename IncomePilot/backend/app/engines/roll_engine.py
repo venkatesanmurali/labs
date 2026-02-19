@@ -31,6 +31,18 @@ from app.providers.base import MarketDataProvider
 from app.schemas.roll import RollAlternative, RollDecision, RollRequest
 
 
+def _compute_gamma_risk(gamma: float, spot: float, dte: int) -> float:
+    """
+    Compute a 0-1 gamma risk score.
+    High gamma near expiry = high risk of rapid delta change.
+    Score = gamma * spot * 100 * (5 / max(dte, 1)), clamped to [0, 1].
+    """
+    if dte <= 0 or gamma <= 0 or spot <= 0:
+        return 0.0
+    raw = gamma * spot * 100 * (5.0 / max(dte, 1))
+    return min(1.0, max(0.0, raw))
+
+
 def evaluate_roll(
     req: RollRequest,
     provider: MarketDataProvider,
@@ -40,6 +52,8 @@ def evaluate_roll(
     roll_max_debit: float = 0.50,
     roll_min_dte: int = 7,
     roll_max_dte: int = 45,
+    deep_itm_ratio: float = 2.0,
+    gamma_zone_dte: int = 5,
 ) -> RollDecision:
     """
     Run the roll decision pipeline.
@@ -67,8 +81,8 @@ def evaluate_roll(
     extrinsic = max(option_mid - intrinsic, 0.0)
 
     is_itm = spot > strike
-    deep_itm = intrinsic > 2 * extrinsic if extrinsic > 0 else (intrinsic > 0)
-    high_gamma_zone = dte <= 5 and is_itm
+    deep_itm = intrinsic > deep_itm_ratio * extrinsic if extrinsic > 0 else (intrinsic > 0)
+    high_gamma_zone = dte <= gamma_zone_dte and is_itm
 
     # ── Fetch roll candidates from the chain ─────────────────────────────
     chain = provider.get_option_chain(req.symbol)
@@ -98,6 +112,10 @@ def evaluate_roll(
 
         new_moneyness = (c.strike - spot) / spot if spot > 0 else 0
 
+        # Expected P&L if stock stays flat: net_credit + theta decay over DTE
+        expected_pnl_if_flat = round(net_credit + abs(c.theta) * c.dte, 2)
+        alt_gamma_risk = round(_compute_gamma_risk(c.gamma, spot, c.dte), 4)
+
         explanation = (
             f"Roll to {c.strike} strike, {c.expiry} ({c.dte} DTE). "
             f"Net {'credit' if net_credit >= 0 else 'debit'} ${abs(net_credit):.2f}. "
@@ -113,8 +131,13 @@ def evaluate_roll(
                 ask=c.ask,
                 mid=c.mid,
                 delta=c.delta,
+                gamma=c.gamma,
+                theta=c.theta,
+                vega=c.vega,
                 net_credit=net_credit,
                 new_moneyness_pct=round(new_moneyness, 4),
+                expected_pnl_if_flat=expected_pnl_if_flat,
+                gamma_risk_score=alt_gamma_risk,
                 explanation=explanation,
             )
         )
@@ -193,10 +216,22 @@ def evaluate_roll(
             f"Continue to hold and monitor."
         )
 
+    # Compute gamma risk for the current position using chain data
+    current_gamma_risk = 0.0
+    for c in chain.contracts:
+        if c.option_type == "call" and c.strike == strike and c.expiry == req.expiry:
+            current_gamma_risk = round(_compute_gamma_risk(c.gamma, spot, dte), 4)
+            break
+
+    # Theta remaining as % of original premium
+    theta_remaining_pct = round(extrinsic / req.sold_price * 100, 2) if req.sold_price > 0 else 0.0
+
     return RollDecision(
         action=action,
         explanation=explanation,
         current_extrinsic=round(extrinsic, 2),
         current_intrinsic=round(intrinsic, 2),
+        gamma_risk_score=current_gamma_risk,
+        theta_remaining_pct=theta_remaining_pct,
         alternatives=top_alternatives,
     )

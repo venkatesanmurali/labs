@@ -1,3 +1,4 @@
+from app.routers.analytics import router as analytics_router
 from app.routers.holdings import router as holdings_router
 from app.routers.recommendations import router as recommendations_router
 from app.routers.roll import router as roll_router
@@ -8,6 +9,7 @@ from app.routers.option_trades import router as option_trades_router
 from app.routers.earnings import router as earnings_router
 
 __all__ = [
+    "analytics_router",
     "holdings_router",
     "recommendations_router",
     "roll_router",

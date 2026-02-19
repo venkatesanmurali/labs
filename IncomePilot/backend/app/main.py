@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import init_db
 from app.routers import (
+    analytics_router,
     earnings_router,
     holdings_router,
     journal_router,
@@ -51,6 +52,7 @@ app.add_middleware(
 )
 
 # ── Routers ───────────────────────────────────────────────────────────────
+app.include_router(analytics_router)
 app.include_router(holdings_router)
 app.include_router(recommendations_router)
 app.include_router(roll_router)

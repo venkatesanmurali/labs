@@ -36,11 +36,27 @@ class Settings(BaseSettings):
     w_liquidity: float = 0.20
     w_distance: float = 0.10
     w_earnings_safety: float = 0.10
+    w_theta_efficiency: float = 0.0
+    w_spread: float = 0.0
 
     # ── Roll engine thresholds ────────────────────────────────────────────
     roll_max_debit: float = 0.50  # max debit ($) allowed when rolling
     roll_min_dte_search: int = 7
     roll_max_dte_search: int = 45
+    deep_itm_ratio: float = 2.0
+    gamma_zone_dte: int = 5
+
+    # ── Market-data constants ─────────────────────────────────────────────
+    risk_free_rate: float = 0.045
+    dividend_yield: float = 0.0
+
+    # ── Scoring thresholds ─────────────────────────────────────────────
+    liquidity_oi_threshold: int = 1000
+    liquidity_volume_threshold: int = 500
+    distance_peak_otm: float = 0.05
+    distance_range: float = 0.10
+    spread_min_pct: float = 0.02
+    spread_max_pct: float = 0.20
 
     # ── Provider API keys ────────────────────────────────────────────────
     tradier_api_key: str = ""
