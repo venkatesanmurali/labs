@@ -119,6 +119,98 @@ export default function Portfolio() {
     .filter((h) => h.market_value > 0)
     .map((h) => ({ name: `${h.symbol} (${h.owner})`, value: h.market_value })) || [];
 
+  // Build a lookup of market values from netWorth data
+  // For stocks: keyed by "SYMBOL|OWNER", summing market_value across lots
+  // For LEAPS: keyed by holding id from netWorth (matched by symbol+owner+type)
+  const nwByKey = new Map<string, { market_value: number; current_price: number }>();
+  if (netWorth) {
+    for (const nwh of netWorth.holdings) {
+      const key = `${nwh.symbol}|${nwh.owner}|${nwh.holding_type}`;
+      const existing = nwByKey.get(key);
+      if (existing) {
+        existing.market_value += nwh.market_value;
+      } else {
+        nwByKey.set(key, { market_value: nwh.market_value, current_price: nwh.current_price });
+      }
+    }
+  }
+
+  // Group stock holdings by (symbol, owner) — LEAPS stay separate
+  type GroupedHolding = {
+    key: string;
+    symbol: string;
+    owner: string;
+    holding_type: string;
+    total_shares: number;
+    weighted_avg_cost: number;
+    market_value: number;
+    tags: string[];
+    ids: number[];
+    // For LEAPS
+    strike: number | null;
+    expiry: string | null;
+    option_type: string | null;
+  };
+
+  const grouped: GroupedHolding[] = [];
+  const stockMap = new Map<string, GroupedHolding>();
+
+  for (const h of holdings) {
+    if (h.holding_type === "leaps") {
+      const nwKey = `${h.symbol}|${h.owner}|leaps`;
+      const nw = nwByKey.get(nwKey);
+      grouped.push({
+        key: `leaps-${h.id}`,
+        symbol: h.symbol,
+        owner: h.owner,
+        holding_type: h.holding_type,
+        total_shares: h.shares,
+        weighted_avg_cost: h.avg_cost,
+        market_value: nw?.market_value ?? 0,
+        tags: h.tags ? [h.tags] : [],
+        ids: [h.id],
+        strike: h.strike,
+        expiry: h.expiry,
+        option_type: h.option_type,
+      });
+    } else {
+      const mapKey = `${h.symbol}|${h.owner}`;
+      const existing = stockMap.get(mapKey);
+      if (existing) {
+        const totalCost = existing.weighted_avg_cost * existing.total_shares + h.avg_cost * h.shares;
+        existing.total_shares += h.shares;
+        existing.weighted_avg_cost = totalCost / existing.total_shares;
+        existing.ids.push(h.id);
+        if (h.tags && !existing.tags.includes(h.tags)) existing.tags.push(h.tags);
+      } else {
+        const nwKey = `${h.symbol}|${h.owner}|stock`;
+        const nw = nwByKey.get(nwKey);
+        const entry: GroupedHolding = {
+          key: mapKey,
+          symbol: h.symbol,
+          owner: h.owner,
+          holding_type: h.holding_type,
+          total_shares: h.shares,
+          weighted_avg_cost: h.avg_cost,
+          market_value: nw?.market_value ?? 0,
+          tags: h.tags ? [h.tags] : [],
+          ids: [h.id],
+          strike: null,
+          expiry: null,
+          option_type: null,
+        };
+        stockMap.set(mapKey, entry);
+      }
+    }
+  }
+  // Add stock groups, sorted by symbol
+  grouped.push(...[...stockMap.values()].sort((a, b) => a.symbol.localeCompare(b.symbol)));
+  // Sort: stocks first, then LEAPS
+  grouped.sort((a, b) => {
+    if (a.holding_type !== b.holding_type) return a.holding_type === "stock" ? -1 : 1;
+    return a.symbol.localeCompare(b.symbol);
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -328,6 +420,7 @@ export default function Portfolio() {
               <th className="px-4 py-2">Symbol</th>
               <th className="px-4 py-2">Shares</th>
               <th className="px-4 py-2">Avg Cost</th>
+              <th className="px-4 py-2">Market Value</th>
               <th className="px-4 py-2">Owner</th>
               <th className="px-4 py-2">Type</th>
               <th className="px-4 py-2">Details</th>
@@ -336,38 +429,55 @@ export default function Portfolio() {
             </tr>
           </thead>
           <tbody>
-            {holdings.map((h) => (
-              <tr key={h.id} className="border-t hover:bg-gray-50">
-                <td className="px-4 py-2 font-medium">{h.symbol}</td>
-                <td className="px-4 py-2">{h.shares}</td>
-                <td className="px-4 py-2">${h.avg_cost.toFixed(2)}</td>
-                <td className="px-4 py-2">{h.owner}</td>
-                <td className="px-4 py-2 capitalize">{h.holding_type}</td>
+            {grouped.map((g) => (
+              <tr key={g.key} className="border-t hover:bg-gray-50">
+                <td className="px-4 py-2 font-medium">
+                  {g.symbol}
+                  {g.ids.length > 1 && (
+                    <span className="ml-1 text-xs text-gray-400">({g.ids.length} lots)</span>
+                  )}
+                </td>
+                <td className="px-4 py-2">{g.total_shares % 1 === 0 ? g.total_shares : g.total_shares.toFixed(4)}</td>
+                <td className="px-4 py-2">${g.weighted_avg_cost.toFixed(2)}</td>
+                <td className="px-4 py-2 font-medium text-green-700">
+                  ${g.market_value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </td>
+                <td className="px-4 py-2">{g.owner}</td>
+                <td className="px-4 py-2 capitalize">{g.holding_type}</td>
                 <td className="px-4 py-2 text-gray-500">
-                  {h.holding_type === "leaps"
-                    ? `${h.option_type?.toUpperCase()} $${h.strike} exp ${h.expiry}`
+                  {g.holding_type === "leaps"
+                    ? `${g.option_type?.toUpperCase()} $${g.strike} exp ${g.expiry}`
                     : "—"}
                 </td>
-                <td className="px-4 py-2 text-gray-500">{h.tags || "—"}</td>
+                <td className="px-4 py-2 text-gray-500">{g.tags.join(", ") || "—"}</td>
                 <td className="px-4 py-2 flex gap-2">
-                  <button
-                    onClick={() => startEdit(h)}
-                    className="text-blue-600 hover:underline"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(h.id)}
-                    className="text-red-600 hover:underline"
-                  >
-                    Del
-                  </button>
+                  {g.ids.length === 1 ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          const h = holdings.find((x) => x.id === g.ids[0]);
+                          if (h) startEdit(h);
+                        }}
+                        className="text-blue-600 hover:underline"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(g.ids[0])}
+                        className="text-red-600 hover:underline"
+                      >
+                        Del
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-xs text-gray-400">Grouped</span>
+                  )}
                 </td>
               </tr>
             ))}
             {holdings.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-gray-400">
+                <td colSpan={9} className="px-4 py-6 text-center text-gray-400">
                   No holdings yet. Add one above or load the demo portfolio.
                 </td>
               </tr>
